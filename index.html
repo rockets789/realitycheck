@@ -50,6 +50,7 @@
     padding: 6px; box-shadow: 0 12px 30px rgba(0,0,0,.12); display: flex; flex-direction: column; min-width: 200px; width: max-content; }
   .more-item { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 14px; }
   .more-item:hover, .more-item:focus-visible { background: var(--paper); }
+  .more-item svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; }
   .more-item i { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(0,0,0,.15); }
   .more-item .chev { margin-left: auto; color: var(--muted); font-size: 12px; }
   .color-panel { display: flex; flex-direction: column; gap: 10px; padding: 6px 10px 10px; }
@@ -64,8 +65,38 @@
 
   .layout { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 20px; align-items: start; }
   /* Tasks + To-do sit side by side under the calendar; each card is only as tall as its content. */
-  .lower-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; align-items: start; }
-  .lower-row > .card { min-width: 0; }
+  .col-wide { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 16px; align-items: start; }
+  .tile { min-width: 0; display: flex; flex-direction: column; }
+  .tile-inner { min-width: 0; display: flex; flex-direction: column; }
+  .tile.wide { grid-column: 1 / -1; }
+  /* Rearrange mode */
+  .arrange-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: -6px 0 16px; padding: 10px 14px; border-radius: 12px;
+    background: var(--accent-soft); border: 1px solid var(--accent); color: var(--accent-ink); font-size: 14px; }
+  .arrange-bar .arrange-actions { margin-left: auto; display: flex; gap: 8px; }
+  .tile.arranging { position: relative; border: 2px dashed var(--line-strong); border-radius: calc(var(--radius) + 4px); padding: 6px; background: var(--paper); cursor: grab; }
+  .tile.arranging:hover { border-color: var(--accent); }
+  .tile.arranging.dragging { opacity: .4; }
+  .tile.drop-before::before, .tile.drop-after::after { content: ""; position: absolute; left: 4px; right: 4px; height: 4px; border-radius: 2px; background: var(--accent); }
+  .tile.drop-before::before { top: -11px; }
+  .tile.drop-after::after { bottom: -11px; }
+  .tile-bar { display: flex; align-items: center; gap: 8px; padding: 2px 4px 8px; font-size: 14px; }
+  .tile-grip { color: var(--muted); font-size: 16px; }
+  .tile-moves { margin-left: auto; display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+  .tile-body { pointer-events: none; user-select: none; opacity: .8; }
+  /* A tile with a set height: its card fills it and scrolls inside if the content is taller */
+  .tile.sized > .tile-inner { overflow: hidden; }
+  .tile.sized > .tile-inner > .card { flex: 1 1 auto; min-height: 0; overflow: auto; }
+  .tile.sized > .tile-inner > .tl-card:not(.popped) { display: flex; flex-direction: column; overflow: hidden; }
+  .tile.sized > .tile-inner > .tl-card:not(.popped) .tl-scroll, .tile.sized > .tile-inner > .tl-card:not(.popped) .month { flex: 1 1 auto; min-height: 0; max-height: none; overflow: auto; }
+  .tile-resize { position: absolute; right: -2px; bottom: -2px; width: 26px; height: 26px; display: grid; place-items: center; cursor: nwse-resize;
+    border-radius: 8px 0 calc(var(--radius) + 4px) 0; background: var(--accent); color: #fff; touch-action: none; z-index: 2; }
+  .col-narrow .tile-resize { cursor: ns-resize; }
+  .tile-resize svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+  .tile-resize:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .tile-size-tip { position: absolute; right: 30px; bottom: 2px; background: var(--ink); color: #fff; font: 500 12px "DM Mono", monospace; padding: 3px 7px; border-radius: 6px; white-space: nowrap; }
+  .tile.arranging.resizing { cursor: nwse-resize; border-color: var(--accent); }
+  .tile-end { border: 2px dashed var(--line); border-radius: 14px; padding: 14px; text-align: center; color: var(--muted); font-size: 13px; grid-column: 1 / -1; }
+  .tile-end.over { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
   @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
 
   .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
@@ -1030,8 +1061,105 @@ function RightNow({ tasks, events, windDown, todayN, missedCount, onDone, onExit
   );
 }
 
+/* ---------- Movable tiles ---------- */
+const TILE_NAMES = { today: "Today", timer: "Timer", event: "Add event", estimate: "Estimate", calendar: "Calendar", tasks: "Flexible tasks", todo: "To-do" };
+const TILE_DEFAULT = { left: ["today", "timer", "event", "estimate"], right: ["calendar", "tasks", "todo"] };
+// Saved layout, cleaned up: every tile exactly once (new or missing ones go back to their default column).
+function normTiles(t) {
+  const seen = new Set(), out = { left: [], right: [] };
+  ["left", "right"].forEach((c) => (t && Array.isArray(t[c]) ? t[c] : []).forEach((id) => {
+    if (TILE_NAMES[id] && !seen.has(id)) { seen.add(id); out[c].push(id); }
+  }));
+  ["left", "right"].forEach((c) => TILE_DEFAULT[c].forEach((id) => { if (!seen.has(id)) out[c].push(id); }));
+  return out;
+}
+// Saved size of a tile: h = fixed height in px (null = fit the content), wide = full width of the right column.
+const tileSize = (sizes, id) => ({ h: null, wide: id === "calendar", ...((sizes && sizes[id]) || {}) });
+const TILE_MIN_H = 140;
+function Tile({ id, col, index, count, arranging, size, onSize, tileDrag, setTileDrag, onMove, children }) {
+  const ref = useRef(null), resizing = useRef(false);
+  const [live, setLive] = useState(null); // size while the handle is being dragged
+  const sz = live || size;
+  const wide = col === "right" && sz.wide;
+  const dragging = tileDrag && tileDrag.id === id;
+  const over = tileDrag && !dragging && tileDrag.over && tileDrag.over.col === col && tileDrag.over.index != null
+    && (tileDrag.over.index === index ? "before" : tileDrag.over.index === index + 1 ? "after" : null);
+  const cls = "tile" + (wide ? " wide" : "") + (sz.h ? " sized" : "");
+  const innerStyle = sz.h ? { height: sz.h } : undefined;
+  // Same element tree in and out of rearrange mode, so the cards inside keep their state.
+  if (!arranging) return <div className={cls}>{null}<div className="tile-inner" style={innerStyle}>{children}</div>{null}</div>;
+
+  // Corner handle: drag down/up for height; in the right column, drag sideways to switch half / full width.
+  const startResize = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const tile = ref.current, inner = tile.querySelector(".tile-inner"), colEl = tile.parentElement;
+    const x0 = e.clientX, y0 = e.clientY, h0 = inner.getBoundingClientRect().height, w0 = tile.getBoundingClientRect().width;
+    const colW = colEl.getBoundingClientRect().width;
+    const twoUp = col === "right" && getComputedStyle(colEl).gridTemplateColumns.split(" ").length > 1;
+    resizing.current = true;
+    let cur = sz;
+    const move = (ev) => {
+      cur = { h: Math.round(clamp(h0 + ev.clientY - y0, TILE_MIN_H, 2400)), wide: twoUp ? w0 + ev.clientX - x0 > colW * 0.75 : sz.wide };
+      setLive(cur);
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up);
+      resizing.current = false; setLive(null); onSize(cur);
+    };
+    window.addEventListener("pointermove", move); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", up);
+  };
+  const other = col === "left" ? "right" : "left";
+  return (
+    <div ref={ref} className={cls + " arranging" + (dragging ? " dragging" : "") + (over ? " drop-" + over : "") + (live ? " resizing" : "")}
+      draggable={!live}
+      onDragStart={(e) => {
+        if (resizing.current) { e.preventDefault(); return; }
+        e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", id); } catch (err) {} setTileDrag({ id, over: null });
+      }}
+      onDragEnd={() => setTileDrag(null)}
+      onDragOver={(e) => {
+        if (!tileDrag) return;
+        e.preventDefault();
+        const r = e.currentTarget.getBoundingClientRect();
+        const i = e.clientY < r.top + r.height / 2 ? index : index + 1;
+        if (!tileDrag.over || tileDrag.over.col !== col || tileDrag.over.index !== i) setTileDrag((d) => ({ ...d, over: { col, index: i } }));
+      }}
+      onDrop={(e) => { e.preventDefault(); if (tileDrag && tileDrag.over && tileDrag.over.index != null) onMove(tileDrag.id, col, tileDrag.over.index); setTileDrag(null); }}>
+      <div className="tile-bar">
+        <span className="tile-grip" aria-hidden="true">⠿</span>
+        <b>{TILE_NAMES[id]}</b>
+        <span className="tile-moves">
+          {col === "right" && (
+            <button type="button" className="btn ghost small" onClick={() => onSize({ ...size, wide: !size.wide })}
+              title={size.wide ? "Make it half width" : "Make it full width"}>{size.wide ? "Half width" : "Full width"}</button>
+          )}
+          {size.h != null && <button type="button" className="btn ghost small" onClick={() => onSize({ ...size, h: null })} title="Fit the height to what's inside">Auto height</button>}
+          <button type="button" className="icon-btn" aria-label={`Move ${TILE_NAMES[id]} up`} disabled={index === 0} onClick={() => onMove(id, col, index - 1)}>↑</button>
+          <button type="button" className="icon-btn" aria-label={`Move ${TILE_NAMES[id]} down`} disabled={index === count - 1} onClick={() => onMove(id, col, index + 2)}>↓</button>
+          <button type="button" className="icon-btn" aria-label={`Move ${TILE_NAMES[id]} to the ${other} column`} title={`Move to the ${other} column`}
+            onClick={() => onMove(id, other, 999)}>{col === "left" ? "→" : "←"}</button>
+        </span>
+      </div>
+      <div className="tile-inner tile-body" style={innerStyle} inert="">{children}</div>
+      <div className="tile-resize" role="button" tabIndex={0} draggable={false}
+        aria-label={`Resize ${TILE_NAMES[id]}: drag, or use arrow keys (up/down for height${col === "right" ? ", left/right for width" : ""})`}
+        title="Drag to resize. Double-click to fit the content."
+        onPointerDown={startResize}
+        onDoubleClick={() => onSize({ ...size, h: null })}
+        onKeyDown={(e) => {
+          const h = size.h || ref.current.querySelector(".tile-inner").getBoundingClientRect().height;
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); onSize({ ...size, h: Math.round(clamp(h + (e.key === "ArrowDown" ? 40 : -40), TILE_MIN_H, 2400)) }); }
+          if (col === "right" && (e.key === "ArrowLeft" || e.key === "ArrowRight")) { e.preventDefault(); onSize({ ...size, wide: e.key === "ArrowRight" }); }
+        }}>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M14 6L6 14M14 10l-4 4" /></svg>
+        {live && <span className="tile-size-tip">{(col === "right" ? (wide ? "Full width" : "Half width") + " · " : "") + sz.h + "px"}</span>}
+      </div>
+    </div>
+  );
+}
+
 /* ---------- "⋯" menu: app settings (Color for now; colors are applied by rail.js on every page) ---------- */
-function MoreMenu() {
+function MoreMenu({ onArrange }) {
   const A = window.RC_ACCENT;
   const [color, setColor] = useState(() => (A ? A.get() : "#1e3a5f"));
   const [open, setOpen] = useState(false);
@@ -1062,6 +1190,10 @@ function MoreMenu() {
         <div className="more-pop" role="menu">
           <button className="more-item" type="button" role="menuitem" aria-expanded={tab === "color"} onClick={() => setTab(tab === "color" ? null : "color")}>
             <i style={{ background: color }} />Color<span className="chev">{tab === "color" ? "▴" : "▾"}</span>
+          </button>
+          <button className="more-item" type="button" role="menuitem" onClick={() => { setOpen(false); onArrange(); }}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+            Rearrange tiles
           </button>
           {tab === "color" && (
             <div className="color-panel">
@@ -2603,36 +2735,42 @@ function App() {
 
   const todayLabel = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
 
-  return (
-    <div className="app">
-      <header className="top">
-        <div className="brand">
-          <h1><button type="button" className="brand-home" onClick={goHome} title="Back to home">Reality<span>Check</span></button></h1>
-          <p>How long will this <em>actually</em> take me, and what's left of my week?</p>
-        </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <button className={"btn rn-toggle" + (focus ? " on" : "")} type="button" aria-pressed={focus} onClick={() => setFocus(!focus)}
-            title="Hide everything except what you should be doing right now">{focus ? "◉ Right now: on" : "◎ Right now"}</button>
-          {!focus && <a className="btn ghost grades-link" href="grades.html">Grade check</a>}
-          {!focus && <a className="btn cram-link" href="cram.html">Cram mode{cram.active ? " · on" : ""} →</a>}
-          <div className="date-pill">{todayLabel}</div>
-          {!focus && <MoreMenu />}
-        </div>
-      </header>
-
-      {focus ? (
-        <RightNow tasks={tasks} events={events} windDown={windDown} todayN={todayN} missedCount={missed.length} onDone={finishNow} onExit={goHome} />
-      ) : (
-      <div className="layout">
-        <aside className="stack">
-          <DayStats events={events} tasks={tasks} date={view === "day" ? anchor : now.today} now={now} />
-          <Pomodoro tasks={tasks} nowAbs={nowAbs} />
-          <AddEventForm onAdd={addEvent} draft={draft} defaultDate={view === "day" ? anchor : now.today} />
-          <TaskEstimator onAdd={addTask} todayN={todayN} lookahead={lookahead} />
-        </aside>
-
-        <div className="stack" style={{ minWidth: 0 }}>
-        <DropCtx.Provider value={dropValue}>
+  /* ----- Tiles: every card on the home page can be moved (⋯ menu → Rearrange tiles) ----- */
+  const [arranging, setArranging] = useState(false);
+  const [tileDrag, setTileDrag] = useState(null); // { id, over: { col, index, end } }
+  const tileLayout = normTiles(settings.tiles);
+  const setTileLayout = (t) => updateSettings({ tiles: t });
+  const moveTile = (id, col, index) => {
+    const t = { left: tileLayout.left.slice(), right: tileLayout.right.slice() };
+    const fromCol = t.left.includes(id) ? "left" : "right", from = t[fromCol].indexOf(id);
+    t[fromCol].splice(from, 1);
+    if (fromCol === col && from < index) index--;
+    t[col].splice(clamp(index, 0, t[col].length), 0, id);
+    setTileLayout(t);
+  };
+  useEffect(() => {
+    if (!arranging) return;
+    if (popped) popIn();
+    const esc = (e) => { if (e.key === "Escape") setArranging(false); };
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [arranging]);
+  useEffect(() => { if (focus) setArranging(false); }, [focus]);
+  const tileBody = {
+    today: (
+      <DayStats events={events} tasks={tasks} date={view === "day" ? anchor : now.today} now={now} />
+    ),
+    timer: (
+      <Pomodoro tasks={tasks} nowAbs={nowAbs} />
+    ),
+    event: (
+      <AddEventForm onAdd={addEvent} draft={draft} defaultDate={view === "day" ? anchor : now.today} />
+    ),
+    estimate: (
+      <TaskEstimator onAdd={addTask} todayN={todayN} lookahead={lookahead} />
+    ),
+    calendar: (
+      <>
         {popped && <div className="pop-placeholder" style={{ height: placeholderH }} aria-hidden="true" />}
         {popped && <div className="pop-backdrop" onMouseDown={popIn} aria-hidden="true" />}
         <section className={"card tl-card" + (popped ? " popped" : "")} id="f-calendar" ref={cardRef}
@@ -2710,19 +2848,73 @@ function App() {
             </button>
           )}
         </section>
-        </DropCtx.Provider>
-        {/* Tasks + To-do side by side under the calendar */}
-        <div className="lower-row">
-          <TaskList tasks={tasks} missedIds={missedIds} cram={cram} absEvents={absEvents} nowAbs={nowAbs} todayN={todayN}
-            settings={{ ...settings, lookahead: settings.lookahead, dailyCapH: settings.dailyCapH }} onSettings={updateSettings}
-            onOptimize={cram.active ? () => replanCram(events, "Re-planned with Cram mode") : optimize} onRemove={(id) => setTasks((ts) => ts.filter((t) => t.id !== id))} onJump={openDay} onEdit={editTask} />
-          <TodoPanel todos={todos} setTodos={setTodos} tasks={tasks} nowAbs={nowAbs} todayN={todayN}
-            onSchedule={scheduleTodos} onUnschedule={(id) => setTasks((ts) => ts.filter((t) => t.id !== id))} onJump={openDay}
-            onImport={importItems} onSetCooked={setCooked} onApplyCram={() => applyCram(cram, events, cram.active ? "Updated Cram mode" : "Turned on Cram mode")}
-            onEdit={editTodo} cram={cram} snapshot={snapshot} />
+      </>
+    ),
+    tasks: (
+      <TaskList tasks={tasks} missedIds={missedIds} cram={cram} absEvents={absEvents} nowAbs={nowAbs} todayN={todayN}
+        settings={{ ...settings, lookahead: settings.lookahead, dailyCapH: settings.dailyCapH }} onSettings={updateSettings}
+        onOptimize={cram.active ? () => replanCram(events, "Re-planned with Cram mode") : optimize} onRemove={(id) => setTasks((ts) => ts.filter((t) => t.id !== id))} onJump={openDay} onEdit={editTask} />
+    ),
+    todo: (
+      <TodoPanel todos={todos} setTodos={setTodos} tasks={tasks} nowAbs={nowAbs} todayN={todayN}
+        onSchedule={scheduleTodos} onUnschedule={(id) => setTasks((ts) => ts.filter((t) => t.id !== id))} onJump={openDay}
+        onImport={importItems} onSetCooked={setCooked} onApplyCram={() => applyCram(cram, events, cram.active ? "Updated Cram mode" : "Turned on Cram mode")}
+        onEdit={editTodo} cram={cram} snapshot={snapshot} />
+    ),
+  };
+
+  return (
+    <div className="app">
+      <header className="top">
+        <div className="brand">
+          <h1><button type="button" className="brand-home" onClick={goHome} title="Back to home">Reality<span>Check</span></button></h1>
+          <p>How long will this <em>actually</em> take me, and what's left of my week?</p>
         </div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <button className={"btn rn-toggle" + (focus ? " on" : "")} type="button" aria-pressed={focus} onClick={() => setFocus(!focus)}
+            title="Hide everything except what you should be doing right now">{focus ? "◉ Right now: on" : "◎ Right now"}</button>
+          {!focus && <a className="btn ghost grades-link" href="grades.html">Grade check</a>}
+          {!focus && <a className="btn cram-link" href="cram.html">Cram mode{cram.active ? " · on" : ""} →</a>}
+          <div className="date-pill">{todayLabel}</div>
+          {!focus && <MoreMenu onArrange={() => { setArranging(true); window.scrollTo(0, 0); }} />}
         </div>
+      </header>
+
+      {focus ? (
+        <RightNow tasks={tasks} events={events} windDown={windDown} todayN={todayN} missedCount={missed.length} onDone={finishNow} onExit={goHome} />
+      ) : (
+      <DropCtx.Provider value={dropValue}>
+      {arranging && (
+        <div className="arrange-bar" role="status">
+          <b>Rearranging tiles</b>
+          <span>Drag a tile to move it, or use its arrows. Drag a tile's corner to resize it.</span>
+          <span className="arrange-actions">
+            <button className="btn ghost small" type="button" onClick={() => updateSettings({ tiles: TILE_DEFAULT, tileSizes: {} })}>Reset layout</button>
+            <button className="btn small" type="button" onClick={() => setArranging(false)}>Done</button>
+          </span>
+        </div>
+      )}
+      <div className={"layout" + (arranging ? " arranging" : "")}>
+        {["left", "right"].map((col) => (
+          <div key={col} className={col === "left" ? "stack col-narrow" : "col-wide"} style={{ minWidth: 0 }}>
+            {tileLayout[col].map((id, i) => (
+              <Tile key={id} id={id} col={col} index={i} arranging={arranging}
+                size={tileSize(settings.tileSizes, id)} onSize={(sz) => updateSettings({ tileSizes: { ...(settings.tileSizes || {}), [id]: sz } })}
+                count={tileLayout[col].length} tileDrag={tileDrag} setTileDrag={setTileDrag} onMove={moveTile}>
+                {tileBody[id]}
+              </Tile>
+            ))}
+            {arranging && (
+              <div className={"tile-end" + (tileDrag && tileDrag.over && tileDrag.over.col === col && tileDrag.over.end ? " over" : "")}
+                onDragOver={(e) => { if (!tileDrag) return; e.preventDefault(); setTileDrag((d) => ({ ...d, over: { col, end: true } })); }}
+                onDrop={(e) => { e.preventDefault(); if (tileDrag) moveTile(tileDrag.id, col, tileLayout[col].length); setTileDrag(null); }}>
+                Drop here to put it at the end
+              </div>
+            )}
+          </div>
+        ))}
       </div>
+      </DropCtx.Provider>
       )}
       {drag && (
         <div className="drag-ghost" aria-hidden="true" style={{
