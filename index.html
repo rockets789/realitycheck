@@ -107,10 +107,63 @@
 
   .empty-hint { position: absolute; left: 0; right: 0; top: 40px; text-align: center; color: var(--muted); font-size: 14px; pointer-events: none; }
   .note { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+
+  /* Reality check result */
+  .result { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 2px; }
+  .result .headline { font-size: 15px; margin: 0; }
+  .result .headline b { font-family: "Fraunces", serif; font-weight: 700; font-size: 24px; }
+  .result .headline .reality { color: var(--accent); }
+  .result .extra { font-size: 13px; color: var(--muted); margin: 2px 0 12px; }
+  .phase-stack { display: flex; height: 12px; border-radius: 6px; overflow: hidden; gap: 2px; margin-bottom: 14px; }
+  .phase-row { margin-bottom: 12px; }
+  .phase-row .top { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; }
+  .phase-row .top .mono { font-weight: 500; }
+  .phase-row .bar { height: 8px; border-radius: 4px; margin: 5px 0 4px; background: var(--paper); overflow: hidden; display: flex; }
+  .phase-row .bar i { display: block; height: 100%; }
+  .phase-row p { margin: 0; font-size: 12px; color: var(--muted); }
 </style>
 </head>
 <body>
 <div id="root"></div>
+
+<!-- ENGINE:START: pure estimation engine (plain JS so it can be tested outside the browser) -->
+<script>
+/**
+ * estimate({ guess, energy, distraction, dread }) -> { total, phases }
+ *   guess:       optimistic estimate in minutes (> 0)
+ *   energy:      1 (running on fumes) .. 5 (fully charged)
+ *   distraction: 1 (phone in another room) .. 5 (group chat is popping)
+ *   dread:       1 (kind of fun) .. 5 (I'd rather do laundry)
+ * Phases are rounded to whole minutes; total is the sum of the rounded phases,
+ * so the bars always add up to the headline number.
+ */
+function estimate({ guess, energy, distraction, dread }) {
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, Number(v)));
+  const g = Number(guess);
+  if (!Number.isFinite(g) || g <= 0) throw new Error("guess must be a positive number of minutes");
+  const e = clamp(energy, 1, 5), d = clamp(distraction, 1, 5), r = clamp(dread, 1, 5);
+
+  const setup = 5 + r * 3;                        // setup friction
+  const fatigue = 1 + (5 - e) * 0.10;             // fatigue multiplier
+  const deep = g * fatigue;                       // deep work
+  const distractionTax = deep * (d - 1) * 0.08;   // distraction tax
+  const buffer = Math.max(5, 0.10 * (setup + deep + distractionTax));
+
+  const phases = [
+    { key: "setup", label: "Setup", minutes: Math.round(setup),
+      why: `5m to get going + ${r * 3}m of stalling because dread is ${r}/5.` },
+    { key: "deep", label: "Deep Work", minutes: Math.round(deep + distractionTax),
+      why: `Your ${g}m × ${fatigue.toFixed(1)} for energy ${e}/5 = ${Math.round(deep)}m, plus ${Math.round(distractionTax)}m lost to distraction (${d}/5).`,
+      parts: { guess: g, fatigue: Math.round(deep) - g, distraction: Math.round(deep + distractionTax) - Math.round(deep) } },
+    { key: "buffer", label: "Buffer", minutes: Math.round(buffer),
+      why: "10% slack for wrap-up and surprises (never less than 5m)." },
+  ];
+  const total = phases.reduce((s, p) => s + p.minutes, 0);
+  return { total, phases };
+}
+if (typeof module !== "undefined") module.exports = { estimate };
+</script>
+<!-- ENGINE:END -->
 
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useMemo } = React;
@@ -274,13 +327,54 @@ function Slider({ name, value, onChange, low, high }) {
   );
 }
 
-/* UI shell for Milestone 2 — state is wired up, the estimate engine comes next */
+const PHASE_COLORS = { setup: "#c9932b", deep: "#4a72c4", buffer: "#cfc6b6" };
+
+function RealityResult({ guess, result }) {
+  const max = Math.max(...result.phases.map((p) => p.minutes));
+  const extra = result.total - guess;
+  return (
+    <div className="result" aria-live="polite">
+      <p className="headline">
+        You said <b>{fmtDur(guess)}</b> → Reality: <b className="reality">{fmtDur(result.total)}</b>
+      </p>
+      <p className="extra">
+        {extra > 0 ? `+${fmtDur(extra)} you weren't counting (${Math.round((result.total / guess - 1) * 100)}% more).` : "Your guess holds up."}
+      </p>
+      <div className="phase-stack" aria-hidden="true">
+        {result.phases.map((p) => <div key={p.key} style={{ flex: p.minutes, background: PHASE_COLORS[p.key] }} />)}
+      </div>
+      {result.phases.map((p) => (
+        <div className="phase-row" key={p.key}>
+          <div className="top"><span>{p.label}</span><span className="mono">{fmtDur(p.minutes)}</span></div>
+          <div className="bar">
+            {p.parts ? (
+              <>
+                <i style={{ width: `${(p.parts.guess / max) * 100}%`, background: PHASE_COLORS.deep }} title="Your guess" />
+                <i style={{ width: `${(p.parts.fatigue / max) * 100}%`, background: PHASE_COLORS.deep, opacity: 0.6 }} title="Fatigue" />
+                <i style={{ width: `${(p.parts.distraction / max) * 100}%`, background: PHASE_COLORS.deep, opacity: 0.35 }} title="Distraction tax" />
+              </>
+            ) : (
+              <i style={{ width: `${(p.minutes / max) * 100}%`, background: PHASE_COLORS[p.key] }} />
+            )}
+          </div>
+          <p>{p.why}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function TaskEstimator() {
   const [task, setTask] = useState({ name: "", guess: 60, energy: 3, distraction: 3, dread: 3, deadline: "" });
+  const [checked, setChecked] = useState(false);
   const set = (k) => (v) => setTask((t) => ({ ...t, [k]: v }));
+  const guessOk = Number.isFinite(task.guess) && task.guess > 0 && task.guess <= 24 * 60;
+  // After the first check the card stays live: moving a slider updates the estimate.
+  const result = useMemo(() => (checked && guessOk ? estimate(task) : null),
+    [checked, guessOk, task.guess, task.energy, task.distraction, task.dread]);
   return (
     <div className="card">
-      <h2>Reality check a task <span className="tag">Milestone 2</span></h2>
+      <h2>Reality check a task</h2>
       <p className="sub">Your guess, then the honest version.</p>
       <div className="stack" style={{ gap: 14 }}>
         <label className="field">Task
@@ -297,10 +391,11 @@ function TaskEstimator() {
         <Slider name="Current energy" value={task.energy} onChange={set("energy")} low="running on fumes" high="fully charged" />
         <Slider name="Distraction level" value={task.distraction} onChange={set("distraction")} low="phone in another room" high="group chat is popping" />
         <Slider name="Task dread / friction" value={task.dread} onChange={set("dread")} low="kind of fun" high="I'd rather do laundry" />
-        <button className="btn" type="button" disabled title="Estimation engine arrives in Milestone 2">
+        {!guessOk && <p className="error">Enter a guess between 1 and 1440 minutes.</p>}
+        <button className="btn" type="button" disabled={!guessOk} onClick={() => setChecked(true)}>
           How long will this actually take? →
         </button>
-        <p className="note">Inputs are live; the estimate + timeline placement get built in Milestones 2–3.</p>
+        {result && <RealityResult guess={task.guess} result={result} />}
       </div>
     </div>
   );
