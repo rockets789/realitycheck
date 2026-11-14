@@ -128,9 +128,10 @@ function mergeIntervals(list) {
   return out;
 }
 
-/* Free [start, end] gaps inside [from, to], treating each busy interval as padded by `pad` minutes */
+/* Free [start, end] gaps inside [from, to]. Each busy interval is [start, end] (padded by `pad` on both sides)
+ * or [start, end, padBefore, padAfter] when it needs its own room, like recovery after a long practice. */
 function freeGaps(busy, from, to, pad) {
-  const merged = mergeIntervals(busy.map(([a, b]) => [a - (pad || 0), b + (pad || 0)]));
+  const merged = mergeIntervals(busy.map(([a, b, before, after]) => [a - (before ?? pad ?? 0), b + (after ?? pad ?? 0)]));
   const gaps = [];
   let c = from;
   for (const [a, b] of merged) {
@@ -152,6 +153,40 @@ function planningWindows(fromAbs, days, dayStart, windDown) {
   }
   return out;
 }
+
+/* ----- Recovery: how much room to leave after something before scheduling work -----
+ * Lunch for an hour? Back to work in 10 min. Four hours of soccer practice? Take about an hour first.
+ * Events are "light", "normal" or "draining": set by hand (e.intensity) or guessed from the name. */
+const INTENSITY_LEVELS = ["light", "normal", "draining"];
+const DRAINING_WORDS = /\b(practices?|games?|match(es)?|tournaments?|scrimmages?|workouts?|gym|lift(ing)?|training|conditioning|runs?|running|swim(ming)?|hikes?|shifts?|exams?|midterms?|finals?|labs?|rehearsals?|recitals?|competitions?|meets?)\b/i;
+const LIGHT_WORDS = /\b(lunch|dinner|breakfast|brunch|meals?|coffee|snacks?|calls?|nap|walk|commute|break|hang ?out|chill)\b/i;
+function eventIntensity(e) {
+  if (INTENSITY_LEVELS.includes(e.intensity)) return e.intensity;
+  if (e.cramExamId || DRAINING_WORDS.test(e.title || "")) return "draining";
+  return LIGHT_WORDS.test(e.title || "") ? "light" : "normal";
+}
+function recoveryAfter(e) {
+  const h = Math.max(0, (e.end - e.start) / 60), lvl = eventIntensity(e);
+  const m = lvl === "light" ? SCHED.breather : lvl === "normal" ? clamp(10 + 5 * Math.max(0, h - 1), 10, 25) : clamp(15 + 12 * h, 20, 75);
+  return Math.round(m / 5) * 5;
+}
+// A fixed event as a busy interval: the usual 10 min before it, its recovery after it.
+const eventBusy = (e) => { const a = eventAbs(e); return [a.start, a.end, SCHED.breather, recoveryAfter(e)]; };
+// After a long stretch of work, the next task waits a bit longer too.
+const sessionRecovery = (workMin) => (workMin >= 150 ? 30 : workMin >= 100 ? 20 : SCHED.breather);
+/* A placed task's segments as busy intervals; the end of each back-to-back session gets recovery scaled to how much work it held. */
+function taskBusy(segments) {
+  const out = [];
+  let work = 0;
+  (segments || []).forEach((s, i, all) => {
+    if (s.kind !== "break") work += s.end - s.start;
+    const endsSession = !all[i + 1] || all[i + 1].start !== s.end;
+    out.push([s.start, s.end, SCHED.breather, endsSession ? sessionRecovery(work) : SCHED.breather]);
+    if (endsSession) work = 0;
+  });
+  return out;
+}
+const tasksBusy = (tasks) => tasks.flatMap((t) => taskBusy(t.segments));
 
 const clipWindows = (windows, earliest, latest) => windows
   .map(([a, b]) => [Math.max(a, earliest == null ? -Infinity : earliest), Math.min(b, latest == null ? Infinity : latest)])
@@ -243,7 +278,7 @@ function planTasks(tasks, busy, windows, opt) {
   for (const t of order) {
     const p = placeTask(t, busy, windows, Object.assign({}, opt, { capLeft }));
     plan[t.id] = p;
-    p.segments.forEach((s) => busy.push([s.start, s.end]));
+    busy.push(...taskBusy(p.segments));
     capLeft = capLeftFrom(p.segments, opt.dailyCap, capLeft);
   }
   return plan;
@@ -268,7 +303,7 @@ function planAll(tasks, busy, windows, opt) {
   tasks.filter((t) => t.study).sort((a, b) => a.earliest - b.earliest || b.total - a.total).forEach((t) => {
     const p = placeTask(t, busy, windows, Object.assign({}, opt, { dailyCap: Infinity, capLeft: {} }));
     plan[t.id] = p;
-    p.segments.forEach((s) => busy.push([s.start, s.end]));
+    busy.push(...taskBusy(p.segments));
   });
   let capLeft = Object.assign({}, opt.capLeft);
   const placedHw = [];
@@ -279,7 +314,7 @@ function planAll(tasks, busy, windows, opt) {
       if (!finishesLate(relaxed, t.deadline)) p = Object.assign(relaxed, { overCramCap: true });
     }
     plan[t.id] = p;
-    p.segments.forEach((s) => busy.push([s.start, s.end]));
+    busy.push(...taskBusy(p.segments));
     placedHw.push(...p.segments);
     capLeft = capLeftFrom(p.segments, hwCap, capLeft);
   });
@@ -462,7 +497,7 @@ function cramPlan({ cram, events, tasks, settings, nowAbs }) {
   const valid = exams.filter((e) => e.name.trim() && e.at != null && e.at > nowAbs);
   const examEvents = valid.map(examEvent);
   const otherEvents = events.filter((e) => !e.cramExamId);
-  const fixed = otherEvents.concat(examEvents).map(eventAbs).map((e) => [e.start, e.end]);
+  const fixed = otherEvents.concat(examEvents).map(eventBusy);
   const alloc = cramAllocate(valid, { fromAbs, dayStart: DAY_START, windDown, dailyMin: dailyHours * 60, hwShare,
     busy: fixed, stretchMin: stretchH * 60 });
   const study = cramStudyTasks(valid, alloc);
@@ -476,7 +511,7 @@ function cramPlan({ cram, events, tasks, settings, nowAbs }) {
   const runPlan = (withCram) => {
     const cramOpt = withCram ? { hwCapByDay: alloc.hwCapByDay, effort } : null;
     const hwCap = withCram ? (d) => (d in alloc.hwCapByDay ? alloc.hwCapByDay[d] : dailyCap) : dailyCap;
-    return planAll(withCram ? todoHw.concat(study) : todoHw, fixed.concat(doneSegs.map((s) => [s.start, s.end])), windows,
+    return planAll(withCram ? todoHw.concat(study) : todoHw, fixed.concat(tasksBusy(hwTasks.filter(isDone))), windows,
       { dailyCap, capLeft: capLeftFrom(doneSegs, hwCap), cram: cramOpt });
   };
   const plan = runPlan(true);
@@ -646,5 +681,5 @@ if (typeof module !== "undefined") module.exports = {
   gradeSummary, letterFor, classForExam,
   DAY_MIN, DAY_START, DAY_END, dayNum, keyOf, dateKey, absFromLocal, localFromAbs, fmtWhen,
   estimate, freeGaps, planningWindows, clipWindows, capLeftFrom, placeTask, planTasks, planAll, trimForCram,
-  deadlineStatus, countSessions, cramAllocate, usableMinutes, cramStudyTasks, cookedWeight, suggestedDays, migrateTasks,
+  deadlineStatus, countSessions, cramAllocate, usableMinutes, eventIntensity, recoveryAfter, eventBusy, taskBusy, cramStudyTasks, cookedWeight, suggestedDays, migrateTasks,
 };

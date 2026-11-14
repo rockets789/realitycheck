@@ -267,6 +267,7 @@ function BigStuff({ events, fromDay, lastDay, defaultDate, onAdd, onRemove }) {
                         ? `${n} days, ${fmtDate(e.date, { month: "short", day: "numeric" })} – ${fmtDate(g.items[n - 1].date, { month: "short", day: "numeric" })}`
                         : fmtDate(e.date, { weekday: "short", month: "short", day: "numeric" })}
                       {" · "}{fmtDur((e.end - e.start) * n)} total
+                      {recoveryAfter(e) > SCHED.breather ? ` · ${fmtDur(recoveryAfter(e))} to recover after` : ""}
                     </div>
                   </div>
                   <button className="x" aria-label={`Remove ${e.title}`} title={n > 1 ? "Remove all of these" : "Remove"}
@@ -502,7 +503,7 @@ function App() {
                 </div>
                 <p className="note">
                   Each day's study time is split by how cooked you are (fully cooked counts 8× an "I'll be fine" exam),
-                  with a boost as each exam gets close. Sessions go around your fixed events in 50-minute blocks with breaks,
+                  with a boost as each exam gets close. Sessions go around your fixed events in 50-minute blocks with breaks (and leave you time to recover after draining things like practice),
                   and stop 30 minutes before each exam.
                 </p>
               </div>

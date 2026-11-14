@@ -236,6 +236,7 @@
   .todo-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
   .todo-head h2 { margin: 0; }
   .todo-tools { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .todo-tools .linkbtn { align-self: center; margin-left: 2px; }
   .ai-btn { background: #4b3fa8; border-color: #4b3fa8; }
   .quick { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
   .parse-preview { margin: -4px 0 0; font-size: 12.5px; color: var(--muted); }
@@ -269,6 +270,36 @@
   .done-tag { color: var(--sage); font-size: 12px; }
   .cram-btn { background: var(--accent); border-color: var(--accent); }
   .exam-hint { margin: -2px 0 0; font-size: 13px; background: #fff4e0; border-radius: 10px; padding: 8px 11px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  /* Recovery */
+  .recovery { position: absolute; left: 0; right: 0; z-index: 1; pointer-events: none; border-top: 1px dashed var(--sage);
+    background: repeating-linear-gradient(135deg, rgba(93,138,106,.10) 0 5px, transparent 5px 10px); }
+  .recovery span { position: absolute; left: 6px; top: 1px; font-family: "DM Mono", monospace; font-size: 10.5px; color: var(--sage); white-space: nowrap; }
+  .compact .recovery span { font-size: 9.5px; left: 3px; }
+  .picker { display: flex; flex-direction: column; gap: 8px; margin-top: 2px; }
+  .picker-label { font-size: 13px; font-weight: 500; color: var(--muted); }
+  .seg-ctrl.intensity { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; width: 100%; }
+  .seg-ctrl.intensity button { font-size: 13px; padding: 8px 4px; color: var(--ink); white-space: nowrap; }
+  .seg-ctrl.intensity button + button { border-left: 1px solid var(--line-strong); }
+  .seg-ctrl.intensity button[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .picker-note { margin: 0; font-size: 12.5px; line-height: 1.4; color: var(--muted); background: var(--paper); border-radius: 8px; padding: 7px 10px; }
+  .picker-note.rec { background: var(--sage-soft); color: #2f5a3b; }
+
+  /* Editing */
+  .event, .tseg, .chip { cursor: pointer; }
+  .event:focus-visible, .tseg:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+  .todo-edit { all: unset; cursor: pointer; overflow-wrap: anywhere; }
+  .todo-edit:hover { text-decoration: underline; }
+  .todo-edit:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 3px; }
+  .modal-back { position: fixed; inset: 0; background: rgba(31, 29, 26, .35); z-index: 60; display: grid; place-items: center; padding: 16px; }
+  .modal { background: var(--card); border-radius: 16px; padding: 18px 20px 20px; width: min(480px, 100%); max-height: calc(100vh - 32px); overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+  .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .modal-head h2 { font-family: "Fraunces", serif; font-size: 21px; font-weight: 500; margin: 0; }
+  .modal-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
+  .modal-actions a.btn { text-decoration: none; }
+  .btn.danger { color: var(--accent); border-color: var(--accent-soft); }
+  .error { margin: 0; }
+
   /* Right now */
   .rn-toggle { font-size: 14px; padding: 7px 12px; background: var(--card); color: var(--ink); border-color: var(--ink); }
   .rn-toggle.on { background: var(--ink); color: #fff; }
@@ -425,6 +456,7 @@ function AddEventForm({ onAdd, draft, defaultDate }) {
   const [start, setStart] = useState("14:00");
   const [end, setEnd] = useState("15:00");
   const [color, setColor] = useState(0);
+  const [intensity, setIntensity] = useState("auto");
   const [error, setError] = useState("");
 
   useEffect(() => setDate(defaultDate), [defaultDate]);
@@ -444,8 +476,8 @@ function AddEventForm({ onAdd, draft, defaultDate }) {
     if (!isDateKey(date)) return setError("Pick a date.");
     if (en <= s) return setError("End time has to be after the start time.");
     if (en <= DAY_START || s >= DAY_END) return setError("The calendar runs 9:00 AM – 11:00 PM.");
-    onAdd({ id: newId(), title: title.trim(), date, start: s, end: en, color });
-    setTitle(""); setError("");
+    onAdd({ id: newId(), title: title.trim(), date, start: s, end: en, color, intensity });
+    setTitle(""); setError(""); setIntensity("auto");
   };
 
   return (
@@ -469,6 +501,7 @@ function AddEventForm({ onAdd, draft, defaultDate }) {
               style={{ background: c.edge }} onClick={() => setColor(i)} />
           ))}
         </div>
+        {title.trim() && <IntensityPicker value={intensity} title={title} start={toMin(start)} end={toMin(end)} onChange={setIntensity} />}
         {error && <p className="error">{error}</p>}
         <button className="btn" type="submit">Add to calendar</button>
       </div>
@@ -579,7 +612,7 @@ function TaskEstimator({ onAdd, todayN, lookahead }) {
   );
 }
 
-function TaskList({ tasks: allTasks, cram, absEvents, nowAbs, todayN, settings, onSettings, onOptimize, onRemove, onJump }) {
+function TaskList({ tasks: allTasks, cram, absEvents, nowAbs, todayN, settings, onSettings, onOptimize, onRemove, onJump, onEdit }) {
   const tasks = allTasks.filter((t) => !t.study);
   const study = allTasks.filter((t) => t.study);
   const unfit = tasks.filter((t) => !t.fits);
@@ -616,6 +649,7 @@ function TaskList({ tasks: allTasks, cram, absEvents, nowAbs, todayN, settings, 
                     <button type="button" className="ti-title" disabled={!t.fits} title={t.fits ? "Show on calendar" : undefined}
                       onClick={() => onJump(keyOf(dayOfAbs(segs[0].start)))}>{t.title}</button>
                     <span className="mono">{fmtDur(t.total)}</span>
+                    <button className="linkbtn" type="button" aria-label={`Edit ${t.title}`} onClick={() => onEdit(t.id)}>Edit</button>
                     <button className="x" aria-label={`Remove ${t.title}`} onClick={() => onRemove(t.id)}>×</button>
                   </div>
                   <div className="meta">
@@ -707,6 +741,9 @@ function RightNow({ tasks, events, windDown, todayN, onDone, onExit }) {
   const nextAny = next || blocks.find((b) => b.start > now);
   const seg = cur && cur.kind === "task" ? cur.segs.find((s) => s.start <= now && now < s.end) : null;
   const pastWindDown = now - todayN * DAY_MIN >= windDown;
+  // Just got out of something draining? That time is for recovering, not "free".
+  const recovering = !cur && events.map((e) => ({ ...eventAbs(e), rec: recoveryAfter(e) }))
+    .find((e) => e.rec > SCHED.breather && e.end <= now && now < e.end + e.rec);
 
   // What the big countdown counts to, and what fraction of it has gone by
   let label, title, sub, until, from;
@@ -719,6 +756,9 @@ function RightNow({ tasks, events, windDown, todayN, onDone, onExit }) {
   } else if (cur) {
     label = cur.exam ? "Exam" : "Fixed event"; title = cur.title; until = cur.end; from = cur.start;
     sub = `Until ${fmt(cur.end % DAY_MIN)}. Be here, not on your phone.`;
+  } else if (recovering) {
+    label = "Recover"; title = "Take a breather"; until = recovering.end + recovering.rec; from = recovering.end;
+    sub = `You just finished ${recovering.title}. Eat, stretch, shower. ${nextAny && dayOfAbs(nextAny.start) === todayN ? `${nextAny.title} starts at ${fmt(nextAny.start % DAY_MIN)}.` : ""}`;
   } else if (nextAny && dayOfAbs(nextAny.start) === todayN && !pastWindDown) {
     label = "Free right now"; title = "Nothing scheduled"; until = nextAny.start; from = Math.max(now - 1, ...blocks.filter((b) => b.end <= now).map((b) => b.end));
     sub = `Rest, or get a head start. ${nextAny.title} starts at ${fmt(nextAny.start % DAY_MIN)}.`;
@@ -966,7 +1006,7 @@ function AiKeyPanel({ ai, setAi, onClose }) {
   );
 }
 
-function TodoPanel({ todos, setTodos, tasks, nowAbs, todayN, onSchedule, onUnschedule, onJump, onImport, onSetCooked, onApplyCram, cram, snapshot }) {
+function TodoPanel({ todos, setTodos, tasks, nowAbs, todayN, onSchedule, onUnschedule, onJump, onImport, onSetCooked, onApplyCram, onEdit, cram, snapshot }) {
   const [ai, setAi] = useStoredState(AI_STORE_KEY, { apiKey: "" });
   const [text, setText] = useState("");
   const [showKey, setShowKey] = useState(false);
@@ -1069,7 +1109,7 @@ function TodoPanel({ todos, setTodos, tasks, nowAbs, todayN, onSchedule, onUnsch
         <input type="checkbox" checked={td.done} aria-label={`Done: ${td.title}`} onChange={() => toggle(td)} />
         <div className="todo-main">
           <div className="todo-title">
-            {td.title}
+            <button className="todo-edit" type="button" title="Edit" onClick={() => onEdit(td)}>{td.title}</button>
             {td.cls && <span className="chip-cls">{td.cls}</span>}
           </div>
           <div className="todo-meta">
@@ -1239,6 +1279,217 @@ function TodoPanel({ todos, setTodos, tasks, nowAbs, todayN, onSchedule, onUnsch
   );
 }
 
+/* How draining is an event? Decides how long you get to recover before work is scheduled after it. */
+function IntensityPicker({ value, title, start, end, onChange }) {
+  const sample = { title, start, end, intensity: value };
+  const guess = eventIntensity({ title, start, end });
+  const rec = end > start ? recoveryAfter(sample) : null;
+  const label = { light: "Light", normal: "Normal", draining: "Draining" };
+  return (
+    <div className="picker">
+      <span className="picker-label">How draining is it?</span>
+      <div className="seg-ctrl intensity" role="group" aria-label="How draining is it?">
+        <button type="button" aria-pressed={!value || value === "auto"} onClick={() => onChange("auto")}>Auto · {label[guess].toLowerCase()}</button>
+        {INTENSITY_LEVELS.map((l) => <button key={l} type="button" aria-pressed={value === l} onClick={() => onChange(l)}>{label[l]}</button>)}
+      </div>
+      {rec != null && <p className={"picker-note" + (rec > SCHED.breather ? " rec" : "")}>
+        {rec > SCHED.breather ? <>You get <b>{fmtDur(rec)}</b> to recover after it before any work is scheduled.</> : "Work can start 10 min after it ends."}</p>}
+    </div>
+  );
+}
+
+/* ---------- Editing things already on the calendar ---------- */
+function Modal({ title, onClose, children }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="modal-back" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal" role="dialog" aria-modal="true" aria-label={title}>
+        <div className="modal-head">
+          <h2>{title}</h2>
+          <button className="x" type="button" aria-label="Close" onClick={onClose}>×</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function EventEditor({ ev, seriesCount, onSave, onDelete, onClose }) {
+  const [f, setF] = useState({ title: ev.title, date: ev.date, start: toHHMM(ev.start), end: toHHMM(Math.min(ev.end, DAY_MIN - 1)), color: ev.color ?? 0, intensity: ev.intensity || "auto" });
+  const [all, setAll] = useState(false);
+  const [error, setError] = useState("");
+  const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
+  const save = (e) => {
+    e.preventDefault();
+    const s = toMin(f.start), en = toMin(f.end);
+    if (!f.title.trim()) return setError("Give it a name.");
+    if (!isDateKey(f.date)) return setError("Pick a date.");
+    if (en <= s) return setError("End time has to be after the start time.");
+    if (en <= DAY_START || s >= DAY_END) return setError("The calendar runs 9:00 AM – 11:00 PM.");
+    onSave({ title: f.title.trim(), date: f.date, start: s, end: en, color: f.color, intensity: f.intensity }, all);
+  };
+  return (
+    <Modal title="Edit event" onClose={onClose}>
+      <form className="stack" style={{ gap: 12 }} onSubmit={save}>
+        <label className="field">What<input type="text" value={f.title} autoFocus onChange={set("title")} /></label>
+        <label className="field">Date<input type="date" value={f.date} disabled={all} onChange={set("date")} /></label>
+        <div className="row">
+          <label className="field">Starts<input type="time" step="300" value={f.start} onChange={set("start")} /></label>
+          <label className="field">Ends<input type="time" step="300" value={f.end} onChange={set("end")} /></label>
+        </div>
+        <div className="swatches" role="group" aria-label="Color">
+          {COLORS.map((c, i) => (
+            <button key={i} type="button" className="swatch" aria-pressed={f.color === i} aria-label={`Color ${i + 1}`}
+              style={{ background: c.edge }} onClick={() => setF((x) => ({ ...x, color: i }))} />
+          ))}
+        </div>
+        <IntensityPicker value={f.intensity} title={f.title} start={toMin(f.start)} end={toMin(f.end)} onChange={(v) => setF((x) => ({ ...x, intensity: v }))} />
+        {seriesCount > 1 && (
+          <label className="check"><input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} />
+            Change all {seriesCount} days of this repeating block (name, time, color, how draining)</label>
+        )}
+        {error && <p className="error">{error}</p>}
+        <div className="modal-actions">
+          <button className="btn ghost danger" type="button" onClick={() => onDelete(all)}>Delete{all ? ` all ${seriesCount}` : ""}</button>
+          <span style={{ flex: 1 }} />
+          <button className="btn ghost" type="button" onClick={onClose}>Cancel</button>
+          <button className="btn" type="submit">Save</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function ExamEditor({ exam, onSave, onClose }) {
+  const [f, setF] = useState({ name: exam.name, when: exam.when, length: exam.length });
+  const [error, setError] = useState("");
+  const save = (e) => {
+    e.preventDefault();
+    if (!f.name.trim()) return setError("Give it a name.");
+    if (absFromLocal(f.when) == null) return setError("Set the date and time.");
+    onSave({ name: f.name.trim(), when: f.when, length: Number(f.length) || 90 });
+  };
+  return (
+    <Modal title="Edit exam" onClose={onClose}>
+      <form className="stack" style={{ gap: 12 }} onSubmit={save}>
+        <p className="note" style={{ margin: 0 }}>Exams live in Cram mode. Changing the time here moves it there too{exam.active ? " and re-plans your study time" : ""}.</p>
+        <label className="field">Exam<input type="text" value={f.name} autoFocus onChange={(e) => setF((x) => ({ ...x, name: e.target.value }))} /></label>
+        <div className="row">
+          <label className="field">Starts<input type="datetime-local" value={f.when} onChange={(e) => setF((x) => ({ ...x, when: e.target.value }))} /></label>
+          <label className="field">Length (min)<input type="number" min="15" max="300" step="15" value={f.length} onChange={(e) => setF((x) => ({ ...x, length: e.target.value }))} /></label>
+        </div>
+        {error && <p className="error">{error}</p>}
+        <div className="modal-actions">
+          <a className="btn ghost" href="cram.html">More in Cram mode →</a>
+          <span style={{ flex: 1 }} />
+          <button className="btn ghost" type="button" onClick={onClose}>Cancel</button>
+          <button className="btn" type="submit">Save</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function TaskEditor({ task, nowAbs, todayN, onSave, onDelete, onClose }) {
+  const first = task.fits && task.segments.length ? task.segments[0].start : null;
+  const done = task.fits && task.segments.length && task.segments[task.segments.length - 1].end <= nowAbs;
+  const [f, setF] = useState({
+    title: task.title, guess: task.guess || task.total, dread: task.dread || 3,
+    deadline: task.deadline != null ? localFromAbs(task.deadline) : "",
+    start: first != null ? localFromAbs(first) : "",
+  });
+  const [error, setError] = useState("");
+  const set = (k) => (v) => setF((x) => ({ ...x, [k]: v }));
+  const guess = Number(f.guess);
+  const guessOk = Number.isFinite(guess) && guess > 0 && guess <= 24 * 60;
+  const est = guessOk ? estimate({ guess, energy: task.energy || 3, distraction: task.distraction || 3, dread: f.dread }) : null;
+  const save = (e) => {
+    e.preventDefault();
+    if (!f.title.trim()) return setError("Give it a name.");
+    if (!done && !guessOk) return setError("Your guess should be between 1 and 1440 minutes.");
+    // Only pin a start time if they changed it; otherwise the planner is free to find the best spot.
+    const startAbs = absFromLocal(f.start);
+    const moved = startAbs != null && startAbs !== first;
+    onSave({ title: f.title.trim(), guess, dread: f.dread, deadline: absFromLocal(f.deadline), earliest: moved ? startAbs : task.earliest ?? null }, { replan: !done });
+  };
+  if (task.study) {
+    return (
+      <Modal title="Study session" onClose={onClose}>
+        <div className="stack" style={{ gap: 12 }}>
+          <p style={{ margin: 0 }}><b>{task.title}</b>{first != null ? ` · ${fmtWhen(first, todayN)}` : ""}</p>
+          <p className="note" style={{ margin: 0 }}>Cram mode plans study sessions from your exams, how cooked you are and your free time. Change those in Cram mode and the sessions follow.</p>
+          <div className="modal-actions"><span style={{ flex: 1 }} /><a className="btn" href="cram.html">Open Cram mode →</a></div>
+        </div>
+      </Modal>
+    );
+  }
+  return (
+    <Modal title="Edit task" onClose={onClose}>
+      <form className="stack" style={{ gap: 12 }} onSubmit={save}>
+        <label className="field">Task<input type="text" value={f.title} autoFocus onChange={(e) => set("title")(e.target.value)} /></label>
+        {done ? <p className="note" style={{ margin: 0 }}>This one's already done, so only the name can change.</p> : (
+          <>
+            <div className="row">
+              <label className="field">Your guess (min)<input type="number" min="5" step="5" value={f.guess} onChange={(e) => set("guess")(e.target.value)} /></label>
+              <label className="field">Deadline<input type="datetime-local" value={f.deadline} onChange={(e) => set("deadline")(e.target.value)} /></label>
+            </div>
+            <Slider name="Task dread / friction" value={f.dread} onChange={set("dread")} low="kind of fun" high="I'd rather do laundry" />
+            {est && <p className="note" style={{ margin: 0 }}>Reality check: <b>{fmtDur(est.total)}</b> on the calendar (setup, breaks and buffer included).</p>}
+            <label className="field">Start at
+              <input type="datetime-local" value={f.start} onChange={(e) => set("start")(e.target.value)} />
+            </label>
+            <p className="note" style={{ margin: "-6px 0 0" }}>
+              Pick a new time to move it there (or the next free spot after it). Optimize will keep it at or after that time.
+              {task.earliest != null && <> <button className="linkbtn" type="button" onClick={() => onSave({ title: f.title.trim() || task.title, guess, dread: f.dread, deadline: absFromLocal(f.deadline), earliest: null }, { replan: true })}>Unpin and let the planner choose</button></>}
+            </p>
+          </>
+        )}
+        {error && <p className="error">{error}</p>}
+        <div className="modal-actions">
+          <button className="btn ghost danger" type="button" onClick={onDelete}>Delete</button>
+          <span style={{ flex: 1 }} />
+          <button className="btn ghost" type="button" onClick={onClose}>Cancel</button>
+          <button className="btn" type="submit">Save</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function TodoEditor({ todo, onSave, onDelete, onClose }) {
+  const [f, setF] = useState({ title: todo.title, cls: todo.cls || "", due: todo.due != null ? localFromAbs(todo.due) : "", minutes: todo.minutes ?? "" });
+  const [error, setError] = useState("");
+  const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
+  const save = (e) => {
+    e.preventDefault();
+    if (!f.title.trim()) return setError("Give it a name.");
+    onSave({ title: f.title.trim(), cls: f.cls.trim(), due: absFromLocal(f.due), minutes: f.minutes === "" ? null : Number(f.minutes) });
+  };
+  return (
+    <Modal title="Edit to-do" onClose={onClose}>
+      <form className="stack" style={{ gap: 12 }} onSubmit={save}>
+        <label className="field">To-do<input type="text" value={f.title} autoFocus onChange={set("title")} /></label>
+        <div className="row">
+          <label className="field">Due<input type="datetime-local" value={f.due} onChange={set("due")} /></label>
+          <label className="field">Estimate (min)<input type="number" min="5" step="5" value={f.minutes} placeholder="30" onChange={set("minutes")} /></label>
+        </div>
+        <label className="field">Class (optional)<input type="text" value={f.cls} placeholder="e.g. CS 251" onChange={set("cls")} /></label>
+        {error && <p className="error">{error}</p>}
+        <div className="modal-actions">
+          <button className="btn ghost danger" type="button" onClick={onDelete}>Delete</button>
+          <span style={{ flex: 1 }} />
+          <button className="btn ghost" type="button" onClick={onClose}>Cancel</button>
+          <button className="btn" type="submit">Save</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 function DayStats({ events, tasks, date, now }) {
   const isToday = date === now.today;
   const from = isToday ? clamp(now.min, DAY_START, DAY_END) : date < now.today ? DAY_END : DAY_START;
@@ -1259,7 +1510,8 @@ function DayStats({ events, tasks, date, now }) {
   );
 }
 
-function DayColumn({ date, isToday, isPast, now, pxPerMin, windDown, events, segs, deadlines, onDelete, onPickSlot }) {
+function DayColumn({ date, isToday, isPast, now, pxPerMin, windDown, events, segs, deadlines, onDelete, onPickSlot, onEditEvent, onEditTask }) {
+  const keyOpen = (fn) => (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fn(); } };
   const y = (m) => (clamp(m, DAY_START, DAY_END) - DAY_START) * pxPerMin;
   const laid = useMemo(() => layoutLanes(events), [events]);
   const conflicts = useMemo(() => {
@@ -1288,7 +1540,9 @@ function DayColumn({ date, isToday, isPast, now, pxPerMin, windDown, events, seg
         const short = bottom - top < 40;
         return (
           <div key={ev.id} className={"event" + (ev.cramExamId ? " exam" : "") + (conflicts.has(ev.id) ? " conflict" : "")}
-            title={`${ev.title} · ${fmt(ev.start)} – ${fmt(ev.end)}`}
+            title={`${ev.title} · ${fmt(ev.start)} – ${fmt(ev.end)} · click to edit`}
+            role="button" tabIndex={0} aria-label={`Edit ${ev.title}`}
+            onClick={() => onEditEvent(ev.id)} onKeyDown={keyOpen(() => onEditEvent(ev.id))}
             style={{
               top: top + 1, height: bottom - top - 2,
               left: `calc(${widthPct * ev.lane}% + 2px)`, width: `calc(${widthPct}% - 4px)`,
@@ -1300,7 +1554,20 @@ function DayColumn({ date, isToday, isPast, now, pxPerMin, windDown, events, seg
               {conflicts.has(ev.id) && <span className="conflict-badge">overlap</span>}
             </div>
             {!short && <div className="time">{fmt(ev.start)} – {fmt(ev.end)}</div>}
-            <button className="del" aria-label={`Delete ${ev.title}`} onClick={() => onDelete(ev.id)}>×</button>
+            <button className="del" aria-label={`Delete ${ev.title}`} onClick={(e) => { e.stopPropagation(); onDelete(ev.id); }}>×</button>
+          </div>
+        );
+      })}
+
+      {events.map((ev) => {
+        const rec = recoveryAfter(ev);
+        if (rec <= SCHED.breather) return null;
+        const top = y(ev.end), h = y(ev.end + rec) - top;
+        if (h <= 0) return null;
+        return (
+          <div key={"rec" + ev.id} className="recovery" style={{ top, height: h }}
+            title={`Recovery after ${ev.title}: no work scheduled for ${fmtDur(rec)}`}>
+            {h >= 14 && <span>recover {fmtDur(rec)}</span>}
           </div>
         );
       })}
@@ -1316,7 +1583,9 @@ function DayColumn({ date, isToday, isPast, now, pxPerMin, windDown, events, seg
         return (
           <div key={s.taskId + ":" + s.i} className={`tseg ${s.kind}` + (clash ? " conflict" : "")}
             style={{ top: top + 1, height: Math.max(h - 2, 3), ...studyStyle(s) }}
-            title={`${s.title} · ${KIND_LABEL[s.kind]} · ${fmt(s.ls)} – ${fmt(s.le)}`}>
+            title={`${s.title} · ${KIND_LABEL[s.kind]} · ${fmt(s.ls)} – ${fmt(s.le)} · click to edit`}
+            role="button" tabIndex={s.sessionStart ? 0 : -1} aria-label={`Edit ${s.title}`}
+            onClick={() => onEditTask(s.taskId)} onKeyDown={keyOpen(() => onEditTask(s.taskId))}>
             {h >= 13 && (
               <span className="tseg-label">
                 {s.sessionStart && <b>{s.title} · </b>}
@@ -1340,7 +1609,7 @@ function DayColumn({ date, isToday, isPast, now, pxPerMin, windDown, events, seg
   );
 }
 
-function TimeGrid({ dates, now, hourPx, windDown, events, tasks, nowAbs, expanded, scrollRef, bodyRef, onDelete, onPickSlot, onOpenDay }) {
+function TimeGrid({ dates, now, hourPx, windDown, events, tasks, nowAbs, expanded, scrollRef, bodyRef, onDelete, onPickSlot, onOpenDay, onEditEvent, onEditTask }) {
   const pxPerMin = hourPx / 60;
   const height = (DAY_END - DAY_START) * pxPerMin;
   const multi = dates.length > 1;
@@ -1383,7 +1652,7 @@ function TimeGrid({ dates, now, hourPx, windDown, events, tasks, nowAbs, expande
             return (
               <DayColumn key={d} date={d} isToday={d === now.today} isPast={d < now.today} now={now}
                 pxPerMin={pxPerMin} windDown={windDown} events={byDate[d] || []} segs={segmentsOnDay(tasks, n)}
-                deadlines={deadlines} onDelete={onDelete} onPickSlot={onPickSlot} />
+                deadlines={deadlines} onDelete={onDelete} onPickSlot={onPickSlot} onEditEvent={onEditEvent} onEditTask={onEditTask} />
             );
           })}
         </div>
@@ -1393,7 +1662,8 @@ function TimeGrid({ dates, now, hourPx, windDown, events, tasks, nowAbs, expande
   );
 }
 
-function MonthGrid({ anchor, events, tasks, today, onOpenDay }) {
+function MonthGrid({ anchor, events, tasks, today, onOpenDay, onEditEvent, onEditTask }) {
+  const edit = (it) => (e) => { e.stopPropagation(); (it.kind === "event" ? onEditEvent : onEditTask)(it.id); };
   const first = monthStart(anchor);
   const start = weekStart(first);
   const daysInMonth = dayNum(addMonths(first, 1)) - dayNum(first);
@@ -1431,12 +1701,12 @@ function MonthGrid({ anchor, events, tasks, today, onOpenDay }) {
                 aria-label={`${fmtDate(d, { weekday: "long", month: "long", day: "numeric" })}, ${items.length} items`}>
                 <span className="num">{Number(d.slice(8))}</span>
                 {items.slice(0, 3).map((it) => it.kind === "event" ? (
-                  <div key={it.id} className={"chip" + (it.exam ? " exam" : "")} style={{ background: (COLORS[it.color] || COLORS[0]).bg, borderLeftColor: (COLORS[it.color] || COLORS[0]).edge }}>
+                  <div key={it.id} className={"chip" + (it.exam ? " exam" : "")} title="Click to edit" onClick={edit(it)} style={{ background: (COLORS[it.color] || COLORS[0]).bg, borderLeftColor: (COLORS[it.color] || COLORS[0]).edge }}>
                     {it.exam && <span className="exam-badge">Exam</span>}
                     <span className="mono">{fmt(it.start).replace(":00", "").replace(" ", "").toLowerCase()}</span>{it.title}
                   </div>
                 ) : (
-                  <div key={it.id} className="chip task" style={it.color != null ? { borderColor: (COLORS[it.color] || COLORS[0]).edge, background: (COLORS[it.color] || COLORS[0]).bg } : null}><span className="mono">{fmtDur(it.min)}</span>{it.title}</div>
+                  <div key={it.id} className="chip task" title="Click to edit" onClick={edit(it)} style={it.color != null ? { borderColor: (COLORS[it.color] || COLORS[0]).edge, background: (COLORS[it.color] || COLORS[0]).bg } : null}><span className="mono">{fmtDur(it.min)}</span>{it.title}</div>
                 ))}
                 {items.length > 3 && <span className="more">+{items.length - 3} more</span>}
               </div>
@@ -1473,7 +1743,8 @@ function App() {
   const planFromAbs = absFromLocal(settings.planFrom) ?? Math.ceil(nowAbs / 5) * 5;
 
   const absEvents = useMemo(() => events.map(eventAbs), [events]);
-  const fixedBusy = absEvents.map((e) => [e.start, e.end]);
+  // Fixed events as busy time, with recovery after draining ones (see eventBusy in engine.js)
+  const fixedBusy = useMemo(() => events.map(eventBusy), [events]);
   // Look far enough ahead to cover every study session Cram mode pinned to a day.
   const lastPinned = Math.max(0, ...tasks.filter((t) => t.latest != null).map((t) => dayOfAbs(t.latest - 1)));
   const windows = planningWindows(planFromAbs, Math.max(lookahead, lastPinned - dayOfAbs(planFromAbs) + 1), DAY_START, windDown);
@@ -1485,9 +1756,8 @@ function App() {
   const addTasks = (specs) => {
     const all = tasks.slice(), added = [];
     specs.slice().sort((a, b) => (a.deadline ?? Infinity) - (b.deadline ?? Infinity)).forEach((spec) => {
-      const segs = all.flatMap((t) => t.segments || []);
       const hwSegs = all.filter((t) => !t.study).flatMap((t) => t.segments || []);
-      const p = placeTask(trimForCram(spec, cramOpt), [...fixedBusy, ...segs.map((s) => [s.start, s.end])], windows,
+      const p = placeTask(trimForCram(spec, cramOpt), [...fixedBusy, ...tasksBusy(all)], windows,
         { dailyCap: hwCap, capLeft: capLeftFrom(hwSegs, hwCap) });
       const t = { ...spec, id: newId(), ...p };
       all.push(t); added.push(t);
@@ -1607,7 +1877,7 @@ function App() {
   /* What the AI coach sees: open to-dos, the next 7 days (fixed events, planned work, free time), exams, grades. */
   const snapshot = () => {
     const live = (td) => tasks.find((t) => t.id === td.taskId);
-    const busy = [...fixedBusy, ...tasks.flatMap((t) => (t.fits ? t.segments : [])).filter((s) => s.kind !== "break").map((s) => [s.start, s.end])];
+    const busy = [...fixedBusy, ...tasksBusy(tasks.filter((t) => t.fits))];
     const hhmm = (m) => toHHMM(clamp(m, 0, DAY_MIN - 1));
     return {
       todos: todos.filter((t) => !t.done).map((t) => {
@@ -1643,7 +1913,7 @@ function App() {
   const optimize = () => {
     const doneSegs = tasks.filter(isDone).flatMap((t) => t.segments);
     const doneHw = tasks.filter((t) => isDone(t) && !t.study).flatMap((t) => t.segments);
-    const plan = planAll(tasks.filter((t) => !isDone(t)), [...fixedBusy, ...doneSegs.map((s) => [s.start, s.end])], windows,
+    const plan = planAll(tasks.filter((t) => !isDone(t)), [...fixedBusy, ...tasksBusy(tasks.filter(isDone))], windows,
       { dailyCap, capLeft: capLeftFrom(doneHw, hwCap), cram: cramOpt });
     setTasks((ts) => ts.map((t) => (plan[t.id] ? { ...t, ...plan[t.id] } : t)));
   };
@@ -1672,6 +1942,71 @@ function App() {
   const dates = view === "day" ? [anchor] : view === "week" ? Array.from({ length: 7 }, (_, i) => addDays(weekStart(anchor), i)) : [];
   const step = (dir) => setAnchor((a) => (view === "day" ? addDays(a, dir) : view === "week" ? addDays(a, 7 * dir) : addMonths(a, dir)));
   const openDay = (d) => { setAnchor(d); updateSettings({ view: "day" }); };
+
+  /* ----- Editing what's already planned ----- */
+  const [editing, setEditing] = useState(null); // { kind: "event" | "exam" | "task" | "todo", id }
+  const closeEdit = () => setEditing(null);
+  const editEvent = (id) => { const ev = events.find((e) => e.id === id); if (ev) setEditing(ev.cramExamId ? { kind: "exam", id: ev.cramExamId } : { kind: "event", id }); };
+  const editTask = (id) => setEditing({ kind: "task", id });
+  const editTodo = (td) => { const t = taskFor(td, tasks); setEditing(t ? { kind: "task", id: t.id } : { kind: "todo", id: td.id }); };
+  const note = (what, text) => setCramMsg({ at: Date.now(), what, note: text || " ", moved: [], missing: 0 });
+
+  const saveEvent = (ev, patch, all) => {
+    const inSeries = (e) => all && ev.seriesId && e.seriesId === ev.seriesId;
+    const next = events.map((e) => (inSeries(e) ? { ...e, title: patch.title, start: patch.start, end: patch.end, color: patch.color, intensity: patch.intensity } : e.id === ev.id ? { ...e, ...patch } : e));
+    const n = events.filter(inSeries).length;
+    changeEvents(next, `Updated ${patch.title}${n > 1 ? ` (all ${n} days)` : ""}`);
+    if (!cram.active) note(`Updated ${patch.title}${n > 1 ? ` (all ${n} days)` : ""}`, "Hit Optimize if planned tasks should move around it.");
+    if (patch.date !== ev.date) setAnchor(patch.date);
+    closeEdit();
+  };
+  const removeEvent = (ev, all) => {
+    changeEvents(events.filter((e) => !(e.id === ev.id || (all && ev.seriesId && e.seriesId === ev.seriesId))), `Removed ${ev.title}`);
+    closeEdit();
+  };
+  const saveExam = (examId, patch) => {
+    const nextCram = { ...cram, exams: (cram.exams || []).map((e) => (e.id === examId ? { ...e, ...patch } : e)) };
+    if (cram.active) applyCram(nextCram, events, `Updated ${patch.name}`);
+    else { setCram(nextCram); setEvents(withExamEvents(events, nextCram.exams, nowAbs)); note(`Updated ${patch.name}`); }
+    const at = absFromLocal(patch.when);
+    if (at != null) setAnchor(keyOf(dayOfAbs(at)));
+    closeEdit();
+  };
+  /* Save a task: a new guess/dread means a new reality check; then it's re-placed (pinned at or after "Start at" if you moved it),
+     without moving anything else. Its to-do follows along. */
+  const saveTask = (id, f, { replan }) => {
+    const old = tasks.find((t) => t.id === id);
+    if (!old) return closeEdit();
+    let updated = { ...old, title: f.title };
+    if (replan) {
+      const r = estimate({ guess: f.guess, energy: old.energy || 3, distraction: old.distraction || 3, dread: f.dread });
+      const [setup, deep, buffer] = r.phases.map((p) => p.minutes);
+      const spec = { ...old, title: f.title, guess: f.guess, dread: f.dread, deadline: f.deadline ?? null, earliest: f.earliest ?? null,
+        total: r.total, setup, deep, buffer };
+      const rest = tasks.filter((t) => t.id !== id);
+      const hwSegs = rest.filter((t) => !t.study).flatMap((t) => t.segments || []);
+      // Look far enough ahead to reach the day it was moved to
+      const from = dayOfAbs(planFromAbs), pinDay = spec.earliest != null ? dayOfAbs(spec.earliest) : from;
+      const win = planningWindows(planFromAbs, Math.max(lookahead, lastPinned - from + 1, pinDay - from + 3), DAY_START, windDown);
+      const p = placeTask(trimForCram(spec, cramOpt), [...fixedBusy, ...tasksBusy(rest)], win, { dailyCap: hwCap, capLeft: capLeftFrom(hwSegs, hwCap) });
+      updated = { ...spec, ...p };
+    }
+    setTasks((ts) => ts.map((t) => (t.id === id ? updated : t)));
+    if (old.todoId) setTodos((ts) => ts.map((td) => (td.id === old.todoId
+      ? { ...td, title: updated.title, ...(replan ? { due: updated.deadline, minutes: updated.guess, dread: updated.dread } : {}) } : td)));
+    if (replan) {
+      const segs = updated.segments || [];
+      const end = segs.length ? segs[segs.length - 1].end : null;
+      note(`Updated ${updated.title}`, updated.fits
+        ? `Now ${fmtWhen(segs[0].start, todayN)} – ${fmtWhen(end, todayN)}.${updated.deadline != null && end > updated.deadline ? ` That's ${fmtDur(end - updated.deadline)} after it's due.` : ""}`
+        : "It doesn't fit anywhere yet. Try a later start, look further ahead, or raise the daily max.");
+      if (updated.fits) setAnchor(keyOf(dayOfAbs(segs[0].start)));
+    }
+    closeEdit();
+  };
+  const removeTask = (id) => { setTasks((ts) => ts.filter((t) => t.id !== id)); closeEdit(); };
+  const saveTodo = (id, patch) => { setTodos((ts) => ts.map((td) => (td.id === id ? { ...td, ...patch } : td))); closeEdit(); };
+  const removeTodo = (id) => { setTodos((ts) => ts.filter((td) => td.id !== id)); closeEdit(); };
 
   /* ----- "Right now" tunnel vision: only the current block, a live countdown, and what's next ----- */
   const focus = !!settings.focusMode;
@@ -1773,7 +2108,7 @@ function App() {
           <TaskEstimator onAdd={addTask} todayN={todayN} lookahead={lookahead} />
           <TaskList tasks={tasks} cram={cram} absEvents={absEvents} nowAbs={nowAbs} todayN={todayN}
             settings={{ ...settings, lookahead: settings.lookahead, dailyCapH: settings.dailyCapH }} onSettings={updateSettings}
-            onOptimize={cram.active ? () => replanCram(events, "Re-planned with Cram mode") : optimize} onRemove={(id) => setTasks((ts) => ts.filter((t) => t.id !== id))} onJump={openDay} />
+            onOptimize={cram.active ? () => replanCram(events, "Re-planned with Cram mode") : optimize} onRemove={(id) => setTasks((ts) => ts.filter((t) => t.id !== id))} onJump={openDay} onEdit={editTask} />
         </aside>
 
         <div className="stack" style={{ minWidth: 0 }}>
@@ -1820,11 +2155,11 @@ function App() {
             </div>
           </div>
           {view === "month" ? (
-            <MonthGrid anchor={anchor} events={events} tasks={tasks} today={now.today} onOpenDay={openDay} />
+            <MonthGrid anchor={anchor} events={events} tasks={tasks} today={now.today} onOpenDay={openDay} onEditEvent={editEvent} onEditTask={editTask} />
           ) : (
             <TimeGrid dates={dates} now={now} hourPx={hourPx} windDown={windDown} events={events} tasks={tasks} nowAbs={nowAbs}
               scrollRef={scrollRef} bodyRef={bodyRef}
-              onDelete={deleteEvent}
+              onDelete={deleteEvent} onEditEvent={editEvent} onEditTask={editTask}
               onOpenDay={openDay}
               onPickSlot={(date, m) => setDraft({ date, m, at: Date.now() /* new object so clicking the same slot re-fills */ })}
               expanded={!!settings.calExpanded} />
@@ -1839,10 +2174,27 @@ function App() {
         <TodoPanel todos={todos} setTodos={setTodos} tasks={tasks} nowAbs={nowAbs} todayN={todayN}
           onSchedule={scheduleTodos} onUnschedule={(id) => setTasks((ts) => ts.filter((t) => t.id !== id))} onJump={openDay}
           onImport={importItems} onSetCooked={setCooked} onApplyCram={() => applyCram(cram, events, cram.active ? "Updated Cram mode" : "Turned on Cram mode")}
-          cram={cram} snapshot={snapshot} />
+          onEdit={editTodo} cram={cram} snapshot={snapshot} />
         </div>
       </div>
       )}
+      {editing && (() => {
+        if (editing.kind === "event") {
+          const ev = events.find((e) => e.id === editing.id);
+          return ev && <EventEditor ev={ev} seriesCount={ev.seriesId ? events.filter((e) => e.seriesId === ev.seriesId).length : 1}
+            onSave={(patch, all) => saveEvent(ev, patch, all)} onDelete={(all) => removeEvent(ev, all)} onClose={closeEdit} />;
+        }
+        if (editing.kind === "exam") {
+          const ex = (cram.exams || []).find((e) => e.id === editing.id);
+          return ex && <ExamEditor exam={{ ...ex, active: cram.active }} onSave={(patch) => saveExam(ex.id, patch)} onClose={closeEdit} />;
+        }
+        if (editing.kind === "task") {
+          const t = tasks.find((x) => x.id === editing.id);
+          return t && <TaskEditor task={t} nowAbs={nowAbs} todayN={todayN} onSave={(f, o) => saveTask(t.id, f, o)} onDelete={() => removeTask(t.id)} onClose={closeEdit} />;
+        }
+        const td = todos.find((x) => x.id === editing.id);
+        return td && <TodoEditor todo={td} onSave={(patch) => saveTodo(td.id, patch)} onDelete={() => removeTodo(td.id)} onClose={closeEdit} />;
+      })()}
       {cramMsg && (
         <div className="toast" role="status">
           <div>
