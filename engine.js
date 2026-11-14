@@ -507,6 +507,51 @@ function studyByDay(tasks) {
   return out;
 }
 
+/* ============ To-dos ============
+ * Quick add understands plain text, no AI needed:
+ *   "stats pset fri 5pm 2h"  -> due Friday 5:00 PM, ~2h
+ *   "CS 251 lab tmrw 1h30m"  -> due tomorrow (end of day), ~1h 30m, class "CS 251"
+ *   "read ch 4 by 11/20 45m" -> due Nov 20, ~45m
+ * Returns { title, due (absolute minutes or null), minutes (or null), cls (or "") } */
+const TODOS_KEY = "realitycheck.todos.v1";
+const WEEKDAY_NAMES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+function parseQuickTodo(text, nowAbs) {
+  let s = ` ${text} `;
+  const today = dayOfAbs(nowAbs);
+  let minutes = null, day = null, time = null;
+  const cut = (re, fn) => { s = s.replace(re, (...m) => { fn(m); return " "; }); };
+
+  cut(/\s~?(\d+)\s*h(?:rs?|ours?)?\s*(\d+)\s*m(?:ins?|inutes?)?\b/i, (m) => { minutes = Number(m[1]) * 60 + Number(m[2]); });
+  if (minutes == null) cut(/\s~?(\d+(?:\.\d+)?)\s*(?:h|hrs?|hours?)\b/i, (m) => { minutes = Math.round(parseFloat(m[1]) * 60); });
+  if (minutes == null) cut(/\s~?(\d+)\s*(?:m|mins?|minutes?)\b/i, (m) => { minutes = Number(m[1]); });
+
+  cut(/\s(?:at\s+|@\s*)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i, (m) => {
+    time = (Number(m[1]) % 12 + (m[3].toLowerCase() === "pm" ? 12 : 0)) * 60 + Number(m[2] || 0);
+  });
+  cut(/\s(?:at\s+)?(noon|midnight)\b/i, (m) => { time = m[1].toLowerCase() === "noon" ? 12 * 60 : 23 * 60 + 59; });
+
+  cut(/\s(?:due\s+|by\s+|on\s+)?(today|tonight|tomorrow|tmrw|tmr)\b/i, (m) => { day = today + (/^to(day|night)$/i.test(m[1]) ? 0 : 1); });
+  if (day == null) cut(/\s(?:due\s+|by\s+|on\s+)?(next\s+)?(sun|mon|tue|wed|thu|fri|sat)[a-z]*\b/i, (m) => {
+    const ahead = (WEEKDAY_NAMES.indexOf(m[2].toLowerCase()) - weekday(keyOf(today)) + 7) % 7;
+    day = today + (m[1] ? ahead || 7 : ahead);
+  });
+  if (day == null) cut(/\s(?:due\s+|by\s+|on\s+)?(\d{1,2})\/(\d{1,2})\b/, (m) => {
+    const y = Number(keyOf(today).slice(0, 4));
+    let d = dayNum(`${y}-${pad2(m[1])}-${pad2(m[2])}`);
+    if (d < today) d = dayNum(`${y + 1}-${pad2(m[1])}-${pad2(m[2])}`);
+    day = d;
+  });
+
+  let due = null;
+  if (day != null) due = day * DAY_MIN + (time ?? 23 * 60 + 59);
+  else if (time != null) due = (today * DAY_MIN + time > nowAbs ? today : today + 1) * DAY_MIN + time;
+
+  const title = s.replace(/\s(?:due|by|on|at)\s*$/i, " ").replace(/\s+/g, " ").trim();
+  const cls = (title.match(/^([A-Za-z]{2,5}\s?\d{3,5})\b/) || [])[1] || "";
+  return { title: title || text.trim(), due, minutes, cls: cls.toUpperCase() };
+}
+
 /* ============ 5. Grades ============
  * A class: { name, target: "B", scale: [["A", 90], ...], categories: [{ name, weight, items: [{ name, score, outOf }] }] }
  * An item with a blank score is still to come. A category with no items counts as entirely still to come (e.g. "Final 30%").

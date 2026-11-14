@@ -94,6 +94,7 @@
 
   /* Time grid (day + week) */
   .tl-scroll { position: relative; max-height: 74vh; overflow: auto; }
+  .tl-scroll.expanded { max-height: none; }
   .day-heads { position: sticky; top: 0; z-index: 8; display: grid; background: var(--card); border-bottom: 1px solid var(--line); }
   .day-head { border: none; border-left: 1px solid var(--line); background: none; padding: 6px 4px 8px; text-align: center; cursor: pointer; font-size: 12px; color: var(--muted); }
   .day-head:hover { background: var(--paper); }
@@ -220,6 +221,47 @@
   .toast .x { color: #fff; opacity: .7; }
   .toast .warn { color: #ffb59c; }
   .toast a { color: #fff; font-weight: 600; }
+  /* Calendar expand */
+  .expand-bar { display: block; width: 100%; border: none; border-top: 1px solid var(--line); background: var(--paper); color: var(--muted);
+    padding: 7px; font-size: 12.5px; cursor: pointer; }
+  .expand-bar:hover { color: var(--ink); background: #efe9de; }
+
+  /* To-do */
+  .todo-card { display: flex; flex-direction: column; gap: 10px; }
+  .todo-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+  .todo-head h2 { margin: 0; }
+  .todo-tools { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .ai-btn { background: #4b3fa8; border-color: #4b3fa8; }
+  .quick { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+  .parse-preview { margin: -4px 0 0; font-size: 12.5px; color: var(--muted); }
+  .parse-preview b { color: var(--ink); font-weight: 600; }
+  .chip-cls { font-family: "DM Mono", monospace; font-size: 10.5px; background: var(--paper); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; margin-left: 6px; color: var(--muted); font-weight: 500; vertical-align: 1px; }
+  .todo-groups { display: flex; flex-direction: column; gap: 12px; }
+  .todo-groups h3 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+  .todo-groups h3.warn { color: var(--accent); }
+  .todo-groups h3 span { font-family: "DM Mono", monospace; font-weight: 400; margin-left: 4px; }
+  .todo-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .todo { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 10px; align-items: center; background: var(--paper); border-radius: 10px; padding: 8px 10px; }
+  .todo input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--sage); margin: 0; }
+  .todo.done .todo-title { text-decoration: line-through; color: var(--muted); }
+  .todo-title { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+  .todo-meta { font-size: 12px; color: var(--muted); display: block; }
+  .todo-meta .warn, .warn { color: var(--accent); }
+  .mins input { width: 52px; padding: 1px 4px; font-size: 12px; border-radius: 6px; margin: 0 2px; }
+  .linkbtn.inline { font-size: 12px; color: var(--ink); }
+  .ai-panel { background: #f1effb; border: 1px solid #ddd8f3; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+  .ai-panel textarea { width: 100%; border: 1px solid var(--line-strong); border-radius: 10px; padding: 9px 11px; font: inherit; resize: vertical; background: #fff; }
+  .ai-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .ai-row input { flex: 1; min-width: 160px; padding: 6px 9px; font-size: 14px; }
+  .ai-msg { margin: 0; font-style: italic; }
+  .dump-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .dump-list label { display: flex; gap: 8px; align-items: flex-start; background: #fff; border-radius: 8px; padding: 7px 9px; cursor: pointer; }
+  .dump-list input { margin-top: 3px; }
+  .sugg-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; }
+  .sugg-list li > div { display: inline; }
+  .sugg-list li { display: list-item; }
+  .sugg-list p { margin: 2px 0 6px; font-size: 13.5px; }
+  .done-tag { color: var(--sage); font-size: 12px; }
   .grades-link { text-decoration: none; font-size: 14px; padding: 7px 12px; }
   .cram-link { text-decoration: none; background: var(--accent); border-color: var(--accent); font-size: 14px; padding: 7px 12px; }
   .cram-note { background: #fff4e0; border-radius: 10px; padding: 9px 11px; font-size: 13px; margin: 0; }
@@ -231,6 +273,8 @@
 
 <!-- Shared estimation + scheduling + cram engine (also used by cram.html) -->
 <script src="engine.js"></script>
+<!-- Optional Claude features for the to-do list (loads the SDK only when used) -->
+<script src="ai.js"></script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useLayoutEffect, useMemo, useRef } = React;
@@ -737,6 +781,290 @@ function Pomodoro({ tasks, nowAbs }) {
   );
 }
 
+/* ---------- To-dos ---------- */
+// Live calendar task for a to-do, if it still exists
+const taskFor = (td, tasks) => (td.taskId ? tasks.find((t) => t.id === td.taskId) : null);
+// A to-do becomes a reality-checked task (average energy/distraction, its own dread) the scheduler can place.
+function todoSpec(td) {
+  const guess = Number(td.minutes) > 0 ? Number(td.minutes) : 30;
+  const r = estimate({ guess, energy: 3, distraction: 3, dread: td.dread || 3 });
+  const [setup, deep, buffer] = r.phases.map((p) => p.minutes);
+  return { title: td.title, guess, energy: 3, distraction: 3, dread: td.dread || 3, deadline: td.due ?? null,
+    total: r.total, setup, deep, buffer, todoId: td.id };
+}
+function dueGroup(td, nowAbs, todayN) {
+  if (td.done) return "done";
+  if (td.due == null) return "someday";
+  if (td.due < nowAbs) return "overdue";
+  const d = dayOfAbs(td.due);
+  return d === todayN ? "today" : d === todayN + 1 ? "tomorrow" : d < todayN + 7 ? "week" : "later";
+}
+const GROUPS = [["overdue", "Overdue"], ["today", "Today"], ["tomorrow", "Tomorrow"], ["week", "This week"], ["later", "Later"], ["someday", "No deadline"]];
+const KIND_TAG = { todo: "to-do", exam: "exam → Cram mode", event: "event → calendar" };
+
+function AiKeyPanel({ ai, setAi, onClose }) {
+  const [draft, setDraft] = useState("");
+  return (
+    <div className="ai-panel">
+      <b>Turn on AI</b>
+      <p className="note" style={{ margin: 0 }}>
+        AI uses Claude with your own Anthropic API key (get one at console.anthropic.com). It's saved only in this browser and is
+        sent only to Anthropic, only when you press an AI button. Anyone who uses this browser could read it, so don't save it on a shared computer.
+      </p>
+      {ai.apiKey ? (
+        <div className="ai-row">
+          <span className="mono">{ai.apiKey.slice(0, 10)}…{ai.apiKey.slice(-4)}</span>
+          <button className="btn ghost small" type="button" onClick={() => setAi({ apiKey: "" })}>Remove key</button>
+          <button className="btn small" type="button" onClick={onClose}>Done</button>
+        </div>
+      ) : (
+        <form className="ai-row" onSubmit={(e) => { e.preventDefault(); if (draft.trim()) { setAi({ apiKey: draft.trim() }); setDraft(""); onClose(); } }}>
+          <input type="password" placeholder="sk-ant-…" value={draft} autoComplete="off" aria-label="Anthropic API key" onChange={(e) => setDraft(e.target.value)} />
+          <button className="btn small" type="submit" disabled={!draft.trim()}>Save</button>
+          <button className="btn ghost small" type="button" onClick={onClose}>Cancel</button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function TodoPanel({ todos, setTodos, tasks, nowAbs, todayN, onSchedule, onUnschedule, onJump, onAddEvents, onAddExams, snapshot }) {
+  const [ai, setAi] = useStoredState(AI_STORE_KEY, { apiKey: "" });
+  const [text, setText] = useState("");
+  const [showKey, setShowKey] = useState(false);
+  const [dumpOpen, setDumpOpen] = useState(false);
+  const [dump, setDump] = useState("");
+  const [dumpRes, setDumpRes] = useState(null);   // { items: [{...item, pick}], message }
+  const [sugg, setSugg] = useState(null);         // { summary, suggestions: [{..., used}] }
+  const [busy, setBusy] = useState("");           // "dump" | "suggest"
+  const [error, setError] = useState("");
+  const [showDone, setShowDone] = useState(false);
+
+  const parsed = text.trim() ? parseQuickTodo(text, nowAbs) : null;
+  const addTodo = (td) => ({ id: newId(), done: false, taskId: null, dread: 3, cls: "", minutes: null, due: null, note: "", ...td });
+  const quickAdd = (e) => {
+    e.preventDefault();
+    if (!parsed) return;
+    setTodos((ts) => [...ts, addTodo({ title: parsed.title, due: parsed.due, minutes: parsed.minutes, cls: parsed.cls })]);
+    setText("");
+  };
+  const update = (id, patch) => setTodos((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  const dropTask = (td) => { const t = taskFor(td, tasks); if (t && (!t.fits || t.segments[0].start > nowAbs)) onUnschedule(t.id); };
+  const toggle = (td) => { if (!td.done) dropTask(td); update(td.id, { done: !td.done }); };
+  const remove = (td) => { dropTask(td); setTodos((ts) => ts.filter((t) => t.id !== td.id)); };
+  const unplanned = todos.filter((td) => !td.done && !taskFor(td, tasks));
+  const planAll = () => onSchedule(unplanned);
+
+  const needKey = () => { if (ai.apiKey) return false; setShowKey(true); return true; };
+  const runDump = async () => {
+    if (needKey() || !dump.trim()) return;
+    setBusy("dump"); setError("");
+    try {
+      const r = await aiBrainDump(ai.apiKey, dump, nowAbs);
+      setDumpRes({ message: r.message, items: r.items.map((it) => ({ ...it, pick: true })) });
+    } catch (err) { setError(err.message); }
+    setBusy("");
+  };
+  const addPicked = () => {
+    const picked = dumpRes.items.filter((it) => it.pick);
+    const at = (it) => absFromLocal(it.when);
+    const newTodos = picked.filter((it) => it.kind === "todo").map((it) => addTodo({
+      title: it.title, cls: it.class_name, due: at(it), minutes: it.minutes > 0 ? it.minutes : null, dread: it.dread, note: it.note }));
+    if (newTodos.length) setTodos((ts) => [...ts, ...newTodos]);
+    onAddExams(picked.filter((it) => it.kind === "exam" && at(it) != null));
+    onAddEvents(picked.filter((it) => it.kind === "event" && at(it) != null));
+    setDumpRes(null); setDump(""); setDumpOpen(false);
+  };
+  const runSuggest = async () => {
+    if (needKey()) return;
+    setBusy("suggest"); setError("");
+    try { setSugg(await aiSuggest(ai.apiKey, { nowAbs, snapshot: snapshot() })); } catch (err) { setError(err.message); }
+    setBusy("");
+  };
+  const fromAi = (list) => list.map((x) => addTodo({ title: x.title, cls: x.class_name, due: absFromLocal(x.when), minutes: x.minutes > 0 ? x.minutes : null, dread: x.dread }));
+  const doAction = (s, i) => {
+    if (s.action === "add_todos") setTodos((ts) => [...ts, ...fromAi(s.todos)]);
+    if (s.action === "split_todo") {
+      const target = todos.find((t) => t.id === s.target_todo_id);
+      if (target) dropTask(target);
+      setTodos((ts) => [...ts.filter((t) => t.id !== s.target_todo_id), ...fromAi(s.todos)]);
+    }
+    if (s.action === "schedule_all") planAll();
+    setSugg((x) => ({ ...x, suggestions: x.suggestions.map((y, j) => (j === i ? { ...y, used: true } : y)) }));
+  };
+  const actionLabel = (s) => ({
+    add_todos: `Add ${s.todos.length} to-do${s.todos.length === 1 ? "" : "s"}`,
+    split_todo: `Split into ${s.todos.length}`,
+    schedule_all: unplanned.length ? `Plan ${unplanned.length} to-do${unplanned.length === 1 ? "" : "s"}` : null,
+  }[s.action]);
+
+  const groups = {};
+  todos.forEach((td) => { const g = dueGroup(td, nowAbs, todayN); (groups[g] = groups[g] || []).push(td); });
+  Object.values(groups).forEach((l) => l.sort((a, b) => (a.due ?? Infinity) - (b.due ?? Infinity)));
+
+  const row = (td) => {
+    const t = taskFor(td, tasks);
+    const end = t && t.fits ? t.segments[t.segments.length - 1].end : null;
+    const late = end != null && td.due != null && end > td.due;
+    return (
+      <li key={td.id} className={"todo" + (td.done ? " done" : "")}>
+        <input type="checkbox" checked={td.done} aria-label={`Done: ${td.title}`} onChange={() => toggle(td)} />
+        <div className="todo-main">
+          <div className="todo-title">
+            {td.title}
+            {td.cls && <span className="chip-cls">{td.cls}</span>}
+          </div>
+          <div className="todo-meta">
+            {td.due != null ? <span className={td.due < nowAbs && !td.done ? "warn" : ""}>due {fmtWhen(td.due, todayN)}</span> : <span>no deadline</span>}
+            {" · "}
+            {t ? <span>~{fmtDur(td.minutes || 30)}</span> : (
+              <label className="mins">~<input type="number" min="5" step="5" value={td.minutes ?? ""} placeholder="30" aria-label={`Minutes for ${td.title}`}
+                onChange={(e) => update(td.id, { minutes: e.target.value === "" ? null : Number(e.target.value) })} />m</label>
+            )}
+            {td.note && <span> · {td.note}</span>}
+            {!td.done && t && (t.fits
+              ? <> · <button className="linkbtn inline" type="button" onClick={() => onJump(keyOf(dayOfAbs(t.segments[0].start)))}>on calendar {fmtWhen(t.segments[0].start, todayN)}</button>
+                  {late && <span className="warn"> · finishes {fmtDur(end - td.due)} late</span>}</>
+              : <span className="warn"> · doesn't fit yet</span>)}
+          </div>
+        </div>
+        {!td.done && (t
+          ? <button className="btn ghost small" type="button" title="Take it off the calendar" onClick={() => onUnschedule(t.id)}>Unplan</button>
+          : <button className="btn ghost small" type="button" onClick={() => onSchedule([td])}>Plan it</button>)}
+        <button className="x" aria-label={`Remove ${td.title}`} onClick={() => remove(td)}>×</button>
+      </li>
+    );
+  };
+
+  return (
+    <div className="card todo-card">
+      <div className="todo-head">
+        <div>
+          <h2>To-do</h2>
+          <p className="sub" style={{ margin: 0 }}>
+            {todos.filter((t) => !t.done).length} open{unplanned.length ? ` · ${unplanned.length} not on the calendar yet` : todos.some((t) => !t.done) ? " · all planned" : ""}
+          </p>
+        </div>
+        <div className="todo-tools">
+          <button className="btn ghost small" type="button" disabled={!unplanned.length} onClick={planAll}>Plan all{unplanned.length ? ` (${unplanned.length})` : ""}</button>
+          <button className="btn ghost small" type="button" aria-expanded={dumpOpen} onClick={() => setDumpOpen((o) => !o)}>✦ Brain dump</button>
+          <button className="btn small ai-btn" type="button" disabled={busy === "suggest"} onClick={runSuggest}>{busy === "suggest" ? "Thinking…" : "✦ What should I do?"}</button>
+          <button className="linkbtn" type="button" onClick={() => setShowKey((v) => !v)}>{ai.apiKey ? "AI: on" : "AI: off"}</button>
+        </div>
+      </div>
+
+      {showKey && <AiKeyPanel ai={ai} setAi={setAi} onClose={() => setShowKey(false)} />}
+      {error && <p className="banner" style={{ marginTop: 10 }}>{error}</p>}
+
+      <form className="quick" onSubmit={quickAdd}>
+        <input type="text" value={text} placeholder='Add a to-do: "stats pset fri 5pm 2h"' aria-label="New to-do" onChange={(e) => setText(e.target.value)} />
+        <button className="btn" type="submit" disabled={!parsed}>Add</button>
+      </form>
+      {parsed && (parsed.due != null || parsed.minutes != null || parsed.cls) && (
+        <p className="parse-preview">
+          <b>{parsed.title}</b>
+          {parsed.cls && <span className="chip-cls">{parsed.cls}</span>}
+          {parsed.due != null && ` · due ${fmtWhen(parsed.due, todayN)}`}
+          {parsed.minutes != null && ` · ~${fmtDur(parsed.minutes)}`}
+        </p>
+      )}
+
+      {dumpOpen && (
+        <div className="ai-panel">
+          <b>Brain dump</b>
+          <p className="note" style={{ margin: 0 }}>Paste anything: a syllabus schedule, notes to yourself, "ugh i have a lab report thursday and a chem quiz monday and practice every day 4-6". Claude sorts it into to-dos, exams and events.</p>
+          <textarea rows={4} value={dump} onChange={(e) => setDump(e.target.value)} aria-label="Brain dump" placeholder="Everything on your mind…" />
+          <div className="ai-row">
+            <button className="btn small ai-btn" type="button" disabled={!dump.trim() || busy === "dump"} onClick={runDump}>{busy === "dump" ? "Sorting…" : "✦ Sort it out"}</button>
+            <button className="btn ghost small" type="button" onClick={() => { setDumpOpen(false); setDumpRes(null); }}>Close</button>
+          </div>
+          {dumpRes && (
+            <div className="stack" style={{ gap: 8 }}>
+              <p className="ai-msg">{dumpRes.message}</p>
+              {dumpRes.items.length > 0 && (
+                <>
+                  <ul className="dump-list">
+                    {dumpRes.items.map((it, i) => {
+                      const at = absFromLocal(it.when);
+                      return (
+                        <li key={i}>
+                          <label>
+                            <input type="checkbox" checked={it.pick}
+                              onChange={() => setDumpRes((r) => ({ ...r, items: r.items.map((x, j) => (j === i ? { ...x, pick: !x.pick } : x)) }))} />
+                            <span>
+                              <b>{it.title}</b>{it.class_name && <span className="chip-cls">{it.class_name}</span>} <span className="tag">{KIND_TAG[it.kind]}</span>
+                              <span className="todo-meta">
+                                {at != null ? (it.kind === "todo" ? `due ${fmtWhen(at, todayN)}` : `${fmtWhen(at, todayN)}${it.end_time ? ` – ${fmt(toMin(it.end_time))}` : ""}`) : "no date"}
+                                {it.minutes > 0 && it.kind !== "event" ? ` · ~${fmtDur(it.minutes)}` : ""}{it.note ? ` · ${it.note}` : ""}
+                                {it.kind !== "todo" && at == null ? " · needs a date, will be skipped" : ""}
+                              </span>
+                            </span>
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <button className="btn small" type="button" disabled={!dumpRes.items.some((it) => it.pick)} onClick={addPicked}>
+                    Add {dumpRes.items.filter((it) => it.pick).length} selected
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {sugg && (
+        <div className="ai-panel sugg">
+          <div className="ai-row" style={{ justifyContent: "space-between" }}>
+            <b>✦ {sugg.summary}</b>
+            <button className="x" aria-label="Dismiss suggestions" onClick={() => setSugg(null)}>×</button>
+          </div>
+          <ol className="sugg-list">
+            {sugg.suggestions.map((s, i) => {
+              const label = actionLabel(s);
+              return (
+                <li key={i}>
+                  <div>
+                    <b>{s.headline}</b>
+                    <p>{s.detail}</p>
+                    {s.todos.length > 0 && <p className="todo-meta">{s.todos.map((x) => `${x.title}${x.minutes ? ` (~${fmtDur(x.minutes)})` : ""}`).join(" · ")}</p>}
+                  </div>
+                  {s.action === "open_cram" ? <a className="btn ghost small" href="cram.html">Cram mode →</a>
+                    : s.action === "open_grades" ? <a className="btn ghost small" href="grades.html">Grade check →</a>
+                    : label && (s.used ? <span className="mono done-tag">done ✓</span> : <button className="btn ghost small" type="button" onClick={() => doAction(s, i)}>{label}</button>)}
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
+
+      {todos.length === 0 ? (
+        <p className="empty" style={{ marginTop: 12 }}>Nothing yet. Type one above{ai.apiKey ? ", or brain dump everything and let Claude sort it out" : ""}.</p>
+      ) : (
+        <div className="todo-groups">
+          {GROUPS.filter(([g]) => groups[g]).map(([g, label]) => (
+            <section key={g}>
+              <h3 className={g === "overdue" ? "warn" : ""}>{label} <span>{groups[g].length}</span></h3>
+              <ul className="todo-list">{groups[g].map(row)}</ul>
+            </section>
+          ))}
+          {groups.done && (
+            <section>
+              <h3>
+                <button className="linkbtn" type="button" onClick={() => setShowDone((v) => !v)}>{showDone ? "Hide" : "Show"} done ({groups.done.length})</button>
+                {" "}<button className="linkbtn" type="button" onClick={() => setTodos((ts) => ts.filter((t) => !t.done))}>clear done</button>
+              </h3>
+              {showDone && <ul className="todo-list">{groups.done.map(row)}</ul>}
+            </section>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DayStats({ events, tasks, date, now }) {
   const isToday = date === now.today;
   const from = isToday ? clamp(now.min, DAY_START, DAY_END) : date < now.today ? DAY_END : DAY_START;
@@ -837,7 +1165,7 @@ function DayColumn({ date, isToday, isPast, now, pxPerMin, windDown, events, seg
   );
 }
 
-function TimeGrid({ dates, now, hourPx, windDown, events, tasks, nowAbs, scrollRef, bodyRef, onDelete, onPickSlot, onOpenDay }) {
+function TimeGrid({ dates, now, hourPx, windDown, events, tasks, nowAbs, expanded, scrollRef, bodyRef, onDelete, onPickSlot, onOpenDay }) {
   const pxPerMin = hourPx / 60;
   const height = (DAY_END - DAY_START) * pxPerMin;
   const multi = dates.length > 1;
@@ -852,7 +1180,7 @@ function TimeGrid({ dates, now, hourPx, windDown, events, tasks, nowAbs, scrollR
   const empty = !dates.some((d) => (byDate[d] || []).length) && !dates.some((d) => segmentsOnDay(tasks, dayNum(d)).length);
 
   return (
-    <div className={"tl-scroll" + (multi ? " compact" : "")} ref={scrollRef}>
+    <div className={"tl-scroll" + (multi ? " compact" : "") + (expanded ? " expanded" : "")} ref={scrollRef}>
       <div style={{ minWidth: multi ? 56 + dates.length * 96 : undefined, position: "relative" }}>
         <div className="day-heads" style={{ gridTemplateColumns: cols }}>
           <div />
@@ -951,6 +1279,8 @@ function App() {
     { windDown: "21:00", planFrom: "", lookahead: 7, dailyCapH: 4, hourPx: ZOOM_DEFAULT, view: "week" });
   const [cram, setCram] = useStoredState(CRAM_KEY, { active: false, exams: [] });
   const [cramMsg, setCramMsg] = useState(null);
+  const [todos, setTodos] = useStoredState(TODOS_KEY, []);
+  const [grades] = useStoredState(GRADES_KEY, { classes: [] });
   const [draft, setDraft] = useState(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const now = useNow();
@@ -975,16 +1305,82 @@ function App() {
   const hwCap = cramOpt ? (d) => (d in cramOpt.hwCapByDay ? cramOpt.hwCapByDay[d] : dailyCap) : dailyCap;
   const isDone = (t) => t.fits && t.segments.length && t.segments[t.segments.length - 1].end <= nowAbs;
 
-  // Place one new task in the time left over, without moving anything already planned.
+  // Place new tasks in the time left over (earliest deadline first), without moving anything already planned.
+  const addTasks = (specs) => {
+    const all = tasks.slice(), added = [];
+    specs.slice().sort((a, b) => (a.deadline ?? Infinity) - (b.deadline ?? Infinity)).forEach((spec) => {
+      const segs = all.flatMap((t) => t.segments || []);
+      const hwSegs = all.filter((t) => !t.study).flatMap((t) => t.segments || []);
+      const p = placeTask(trimForCram(spec, cramOpt), [...fixedBusy, ...segs.map((s) => [s.start, s.end])], windows,
+        { dailyCap: hwCap, capLeft: capLeftFrom(hwSegs, hwCap) });
+      const t = { ...spec, id: newId(), ...p };
+      all.push(t); added.push(t);
+    });
+    setTasks((ts) => [...ts, ...added]);
+    return added;
+  };
   const addTask = (spec) => {
-    const segs = tasks.flatMap((t) => t.segments || []);
-    const hwSegs = tasks.filter((t) => !t.study).flatMap((t) => t.segments || []);
-    const p = placeTask(trimForCram(spec, cramOpt), [...fixedBusy, ...segs.map((s) => [s.start, s.end])], windows,
-      { dailyCap: hwCap, capLeft: capLeftFrom(hwSegs, hwCap) });
-    const t = { ...spec, id: newId(), ...p };
-    setTasks((ts) => [...ts, t]);
+    const [t] = addTasks([spec]);
     if (t.fits) setAnchor(keyOf(dayOfAbs(t.segments[0].start)));
     return t;
+  };
+  // To-dos -> calendar: each becomes a reality-checked task linked back to its to-do.
+  const scheduleTodos = (list) => {
+    const added = addTasks(list.map(todoSpec));
+    const byTodo = Object.fromEntries(added.map((t) => [t.todoId, t.id]));
+    setTodos((ts) => ts.map((td) => (td.id in byTodo ? { ...td, taskId: byTodo[td.id] } : td)));
+    const first = added.filter((t) => t.fits).sort((a, b) => a.segments[0].start - b.segments[0].start)[0];
+    if (first && list.length === 1) setAnchor(keyOf(dayOfAbs(first.segments[0].start)));
+  };
+  // From the AI brain dump: exams go to Cram mode (not applied until you hit Apply there), events onto the calendar.
+  const addAiExams = (items) => {
+    if (!items.length) return;
+    setCram((c) => ({ ...c, exams: [...(c.exams || []), ...items.map((it, i) => {
+      const name = it.class_name && !normName(it.title).includes(normName(it.class_name)) ? `${it.class_name} ${it.title}` : it.title;
+      const cls = classForExam(grades.classes, name), gs = cls && gradeSummary(cls);
+      return { id: newId(), name, when: it.when, length: it.minutes > 0 ? it.minutes : 90, cooked: gs ? gs.cooked : 3, days: null,
+        color: ((c.exams || []).length + i) % COLORS.length };
+    })] }));
+    setCramMsg({ at: Date.now(), what: `Added ${items.length} exam${items.length === 1 ? "" : "s"} to Cram mode`, note: "They aren't on the calendar until you apply them there.", moved: [], missing: 0, link: true });
+  };
+  const addAiEvents = (items) => {
+    const list = items.map((it) => {
+      const at = absFromLocal(it.when), d = dayOfAbs(at), start = at - d * DAY_MIN;
+      const end = /^\d{2}:\d{2}$/.test(it.end_time) && toMin(it.end_time) > start ? toMin(it.end_time) : start + 60;
+      return { id: newId(), title: it.title, date: keyOf(d), start: clamp(start, 0, DAY_MIN - 5), end: Math.min(end, DAY_MIN), color: 2 };
+    });
+    if (list.length) changeEvents([...events, ...list], `Added ${list.length} event${list.length === 1 ? "" : "s"} from your brain dump`);
+  };
+  /* What the AI coach sees: open to-dos, the next 7 days (fixed events, planned work, free time), exams, grades. */
+  const snapshot = () => {
+    const live = (td) => tasks.find((t) => t.id === td.taskId);
+    const busy = [...fixedBusy, ...tasks.flatMap((t) => (t.fits ? t.segments : [])).filter((s) => s.kind !== "break").map((s) => [s.start, s.end])];
+    const hhmm = (m) => toHHMM(clamp(m, 0, DAY_MIN - 1));
+    return {
+      todos: todos.filter((t) => !t.done).map((t) => {
+        const lt = live(t);
+        return { id: t.id, title: t.title, class: t.cls || "", due: t.due != null ? localFromAbs(t.due) : "", minutes_estimate: t.minutes || 30,
+          dread: t.dread || 3, on_calendar: lt && lt.fits ? localFromAbs(lt.segments[0].start) : "not planned" };
+      }),
+      done_count: todos.filter((t) => t.done).length,
+      next_7_days: Array.from({ length: 7 }, (_, i) => {
+        const d = todayN + i, a = Math.max(d * DAY_MIN + DAY_START, nowAbs), b = d * DAY_MIN + windDown;
+        return {
+          date: `${keyOf(d)} (${fmtDate(keyOf(d), { weekday: "short" })})`,
+          fixed_events: events.filter((e) => e.date === keyOf(d)).map((e) => `${hhmm(e.start)}-${hhmm(e.end)} ${e.title}`),
+          planned_work: tasks.filter((t) => t.fits && t.segments.some((s) => dayOfAbs(s.start) === d && s.kind !== "break"))
+            .map((t) => `${t.study ? "study: " : ""}${t.title} (${fmtDur(t.segments.filter((s) => dayOfAbs(s.start) === d && s.kind !== "break").reduce((x, s) => x + s.end - s.start, 0))})`),
+          free_minutes_before_wind_down: usableMinutes(busy, a, b),
+        };
+      }),
+      cram_mode: { on: !!cram.active, exams: (cram.exams || []).map((e) => ({ name: e.name, when: e.when, cooked_1_to_5: e.cooked })) },
+      grades: grades.classes.map((c) => {
+        const g = gradeSummary(c);
+        return g && { class: c.name, target: c.target, average_so_far: g.current == null ? null : Math.round(g.current),
+          needed_on_rest_for_target: Math.round(g.targetNeed), share_of_grade_left: Math.round(g.pending), verdict: g.verdict };
+      }).filter(Boolean),
+      settings: { wind_down: settings.windDown, max_task_hours_per_day: settings.dailyCapH },
+    };
   };
   // Re-plan every unfinished flexible task from scratch around the fixed events.
   const optimize = () => {
@@ -1108,6 +1504,7 @@ function App() {
             onOptimize={cram.active ? () => replanCram(events, "Re-planned with Cram mode") : optimize} onRemove={(id) => setTasks((ts) => ts.filter((t) => t.id !== id))} onJump={openDay} />
         </aside>
 
+        <div className="stack" style={{ minWidth: 0 }}>
         <section className="card tl-card">
           <div className="tl-head">
             <div className="cal-nav">
@@ -1157,15 +1554,27 @@ function App() {
               scrollRef={scrollRef} bodyRef={bodyRef}
               onDelete={deleteEvent}
               onOpenDay={openDay}
-              onPickSlot={(date, m) => setDraft({ date, m, at: Date.now() /* new object so clicking the same slot re-fills */ })} />
+              onPickSlot={(date, m) => setDraft({ date, m, at: Date.now() /* new object so clicking the same slot re-fills */ })}
+              expanded={!!settings.calExpanded} />
+          )}
+          {view !== "month" && (
+            <button className="expand-bar" type="button" aria-expanded={!!settings.calExpanded}
+              onClick={() => updateSettings({ calExpanded: !settings.calExpanded })}>
+              {settings.calExpanded ? "▴ Collapse calendar" : "▾ Expand calendar (show the whole day)"}
+            </button>
           )}
         </section>
+        <TodoPanel todos={todos} setTodos={setTodos} tasks={tasks} nowAbs={nowAbs} todayN={todayN}
+          onSchedule={scheduleTodos} onUnschedule={(id) => setTasks((ts) => ts.filter((t) => t.id !== id))} onJump={openDay}
+          onAddEvents={addAiEvents} onAddExams={addAiExams} snapshot={snapshot} />
+        </div>
       </div>
       {cramMsg && (
         <div className="toast" role="status">
           <div>
             <b>{cramMsg.what}.</b>{" "}
             {cramMsg.note || (cramMsg.moved.length ? `Cram plan updated: ${cramMsg.moved.join(", ")}.` : "Cram plan checked: study time didn't need to move.")}
+            {cramMsg.link && <> <a href="cram.html">Open Cram mode →</a></>}
             {cramMsg.missing > 0 && <span className="warn"> {fmtDur(cramMsg.missing)} of study no longer fits. <a href="cram.html">Fix it in Cram mode →</a></span>}
           </div>
           <button className="x" aria-label="Dismiss" onClick={() => setCramMsg(null)}>×</button>
