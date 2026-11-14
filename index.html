@@ -221,6 +221,7 @@
   .toast .x { color: #fff; opacity: .7; }
   .toast .warn { color: #ffb59c; }
   .toast a { color: #fff; font-weight: 600; }
+  .toast-btn { border: 1px solid #fff; background: #fff; color: var(--ink); border-radius: 8px; padding: 3px 10px; font-weight: 600; cursor: pointer; font-size: 13px; margin-left: 4px; }
   /* Calendar expand */
   .expand-bar { display: block; width: 100%; border: none; border-top: 1px solid var(--line); background: var(--paper); color: var(--muted);
     padding: 7px; font-size: 12.5px; cursor: pointer; }
@@ -241,7 +242,7 @@
   .todo-groups h3.warn { color: var(--accent); }
   .todo-groups h3 span { font-family: "DM Mono", monospace; font-weight: 400; margin-left: 4px; }
   .todo-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-  .todo { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 10px; align-items: center; background: var(--paper); border-radius: 10px; padding: 8px 10px; }
+  .todo { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; gap: 10px; align-items: center; background: var(--paper); border-radius: 10px; padding: 8px 10px; }
   .todo input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--sage); margin: 0; }
   .todo.done .todo-title { text-decoration: line-through; color: var(--muted); }
   .todo-title { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
@@ -262,6 +263,8 @@
   .sugg-list li { display: list-item; }
   .sugg-list p { margin: 2px 0 6px; font-size: 13.5px; }
   .done-tag { color: var(--sage); font-size: 12px; }
+  .cram-btn { background: var(--accent); border-color: var(--accent); }
+  .exam-hint { margin: -2px 0 0; font-size: 13px; background: #fff4e0; border-radius: 10px; padding: 8px 11px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .grades-link { text-decoration: none; font-size: 14px; padding: 7px 12px; }
   .cram-link { text-decoration: none; background: var(--accent); border-color: var(--accent); font-size: 14px; padding: 7px 12px; }
   .cram-note { background: #fff4e0; border-radius: 10px; padding: 9px 11px; font-size: 13px; margin: 0; }
@@ -802,7 +805,7 @@ function dueGroup(td, nowAbs, todayN) {
   return d === todayN ? "today" : d === todayN + 1 ? "tomorrow" : d < todayN + 7 ? "week" : "later";
 }
 const GROUPS = [["overdue", "Overdue"], ["today", "Today"], ["tomorrow", "Tomorrow"], ["week", "This week"], ["later", "Later"], ["someday", "No deadline"]];
-const KIND_TAG = { todo: "to-do", exam: "exam → Cram mode", event: "event → calendar" };
+const KIND_TAG = { todo: "to-do", study: "study → Cram mode", exam: "exam → Cram mode", event: "event → calendar" };
 
 function AiKeyPanel({ ai, setAi, onClose }) {
   const [draft, setDraft] = useState("");
@@ -830,7 +833,7 @@ function AiKeyPanel({ ai, setAi, onClose }) {
   );
 }
 
-function TodoPanel({ todos, setTodos, tasks, nowAbs, todayN, onSchedule, onUnschedule, onJump, onAddEvents, onAddExams, snapshot }) {
+function TodoPanel({ todos, setTodos, tasks, nowAbs, todayN, onSchedule, onUnschedule, onJump, onImport, onSetCooked, onApplyCram, cram, snapshot }) {
   const [ai, setAi] = useStoredState(AI_STORE_KEY, { apiKey: "" });
   const [text, setText] = useState("");
   const [showKey, setShowKey] = useState(false);
@@ -841,6 +844,7 @@ function TodoPanel({ todos, setTodos, tasks, nowAbs, todayN, onSchedule, onUnsch
   const [busy, setBusy] = useState("");           // "dump" | "suggest"
   const [error, setError] = useState("");
   const [showDone, setShowDone] = useState(false);
+  const [planStudy, setPlanStudy] = useState(true);
 
   // The feature rail can ask for the brain dump panel to open.
   useEffect(() => {
@@ -856,6 +860,19 @@ function TodoPanel({ todos, setTodos, tasks, nowAbs, todayN, onSchedule, onUnsch
     setTodos((ts) => [...ts, addTodo({ title: parsed.title, due: parsed.due, minutes: parsed.minutes, cls: parsed.cls })]);
     setText("");
   };
+  // An exam typed into quick add (or sitting in the list) goes to Cram mode, which plans the studying for it.
+  const isQuiz = (t) => /\bquiz/i.test(t);
+  const asExam = (title, cls, due, hasTime) => ({ kind: "exam", title, class_name: cls || "",
+    when: localFromAbs(hasTime ? due : dayOfAbs(due) * DAY_MIN + 10 * 60), minutes: isQuiz(title) ? 30 : 90, cooked: 3 });
+  const quickExam = () => {
+    onImport([asExam(parsed.examName, parsed.cls, parsed.due, parsed.hasTime)], { planStudy: true });
+    setText("");
+  };
+  const todoToCram = (td) => {
+    const hasTime = (td.due - dayOfAbs(td.due) * DAY_MIN) !== 23 * 60 + 59;
+    const name = td.title.replace(/^(?:study(?:ing)?|review(?:ing)?|prep(?:are)?|cram(?:ming)?)\s+(?:for\s+)?(?:the\s+|my\s+)?/i, "").trim() || td.title;
+    onImport([asExam(name, td.cls, td.due, hasTime)], { planStudy: true, removeTodoId: td.id });
+  };
   const update = (id, patch) => setTodos((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   const dropTask = (td) => { const t = taskFor(td, tasks); if (t && (!t.fits || t.segments[0].start > nowAbs)) onUnschedule(t.id); };
   const toggle = (td) => { if (!td.done) dropTask(td); update(td.id, { done: !td.done }); };
@@ -868,19 +885,13 @@ function TodoPanel({ todos, setTodos, tasks, nowAbs, todayN, onSchedule, onUnsch
     if (needKey() || !dump.trim()) return;
     setBusy("dump"); setError("");
     try {
-      const r = await aiBrainDump(ai.apiKey, dump, nowAbs);
+      const r = await aiBrainDump(ai.apiKey, dump, nowAbs, { exams: (cram.exams || []).map((e) => ({ name: e.name, when: e.when })) });
       setDumpRes({ message: r.message, items: r.items.map((it) => ({ ...it, pick: true })) });
     } catch (err) { setError(err.message); }
     setBusy("");
   };
   const addPicked = () => {
-    const picked = dumpRes.items.filter((it) => it.pick);
-    const at = (it) => absFromLocal(it.when);
-    const newTodos = picked.filter((it) => it.kind === "todo").map((it) => addTodo({
-      title: it.title, cls: it.class_name, due: at(it), minutes: it.minutes > 0 ? it.minutes : null, dread: it.dread, note: it.note }));
-    if (newTodos.length) setTodos((ts) => [...ts, ...newTodos]);
-    onAddExams(picked.filter((it) => it.kind === "exam" && at(it) != null));
-    onAddEvents(picked.filter((it) => it.kind === "event" && at(it) != null));
+    onImport(dumpRes.items.filter((it) => it.pick), { planStudy });
     setDumpRes(null); setDump(""); setDumpOpen(false);
   };
   const runSuggest = async () => {
@@ -898,12 +909,18 @@ function TodoPanel({ todos, setTodos, tasks, nowAbs, todayN, onSchedule, onUnsch
       setTodos((ts) => [...ts.filter((t) => t.id !== s.target_todo_id), ...fromAi(s.todos)]);
     }
     if (s.action === "schedule_all") planAll();
+    if (s.action === "add_exams") onImport(s.exams.map((e) => ({ kind: "exam", ...e })), { planStudy: true, removeTodoId: s.target_todo_id || undefined });
+    if (s.action === "set_cooked") onSetCooked(s.exam_id, s.cooked);
+    if (s.action === "apply_cram") onApplyCram();
     setSugg((x) => ({ ...x, suggestions: x.suggestions.map((y, j) => (j === i ? { ...y, used: true } : y)) }));
   };
   const actionLabel = (s) => ({
     add_todos: `Add ${s.todos.length} to-do${s.todos.length === 1 ? "" : "s"}`,
     split_todo: `Split into ${s.todos.length}`,
     schedule_all: unplanned.length ? `Plan ${unplanned.length} to-do${unplanned.length === 1 ? "" : "s"}` : null,
+    add_exams: s.exams.length ? `Add to Cram + plan study` : null,
+    set_cooked: (cram.exams || []).some((e) => e.id === s.exam_id) ? `Set to ${s.cooked}/5` : null,
+    apply_cram: cram.active ? "Update Cram plan" : "Turn on Cram mode",
   }[s.action]);
 
   const groups = {};
@@ -936,6 +953,9 @@ function TodoPanel({ todos, setTodos, tasks, nowAbs, todayN, onSchedule, onUnsch
               : <span className="warn"> · doesn't fit yet</span>)}
           </div>
         </div>
+        {!td.done && td.due != null && parseQuickTodo(td.title, nowAbs).examLike
+          ? <button className="btn small cram-btn" type="button" title="It's an exam: let Cram mode plan the studying" onClick={() => todoToCram(td)}>→ Cram</button>
+          : null}
         {!td.done && (t
           ? <button className="btn ghost small" type="button" title="Take it off the calendar" onClick={() => onUnschedule(t.id)}>Unplan</button>
           : <button className="btn ghost small" type="button" onClick={() => onSchedule([td])}>Plan it</button>)}
@@ -976,6 +996,13 @@ function TodoPanel({ todos, setTodos, tasks, nowAbs, todayN, onSchedule, onUnsch
           {parsed.minutes != null && ` · ~${fmtDur(parsed.minutes)}`}
         </p>
       )}
+      {parsed && parsed.examLike && parsed.due != null && (
+        <p className="exam-hint">
+          Looks like an exam. Cram mode can plan your studying for <b>{parsed.examName}</b>
+          {parsed.hasTime ? ` (${fmtWhen(parsed.due, todayN)})` : ` (${fmtDate(keyOf(dayOfAbs(parsed.due)), { weekday: "short", month: "short", day: "numeric" })}, time set to 10 AM)`}.
+          <button className="btn small cram-btn" type="button" onClick={quickExam}>Add as exam + plan study</button>
+        </p>
+      )}
 
       {dumpOpen && (
         <div className="ai-panel" id="f-dump">
@@ -1004,7 +1031,10 @@ function TodoPanel({ todos, setTodos, tasks, nowAbs, todayN, onSchedule, onUnsch
                               <span className="todo-meta">
                                 {at != null ? (it.kind === "todo" ? `due ${fmtWhen(at, todayN)}` : `${fmtWhen(at, todayN)}${it.end_time ? ` – ${fmt(toMin(it.end_time))}` : ""}`) : "no date"}
                                 {it.minutes > 0 && it.kind !== "event" ? ` · ~${fmtDur(it.minutes)}` : ""}{it.note ? ` · ${it.note}` : ""}
-                                {it.kind !== "todo" && at == null ? " · needs a date, will be skipped" : ""}
+                                {it.kind === "exam" ? ` · ${it.cooked}/5 ${COOKED_LABELS[it.cooked - 1]}` : ""}
+                                {it.kind === "study" ? ` · folded into ${it.exam_title || "its exam"}'s study plan` : ""}
+                                {it.kind === "event" && it.repeat !== "none" ? ` · repeats ${it.repeat === "daily" ? "daily" : "weekdays"}${it.repeat_until ? ` until ${fmtDate(it.repeat_until, { month: "short", day: "numeric" })}` : " through your exams"}` : ""}
+                                {(it.kind === "exam" || it.kind === "event") && at == null ? " · needs a date, will be skipped" : ""}
                               </span>
                             </span>
                           </label>
@@ -1012,6 +1042,9 @@ function TodoPanel({ todos, setTodos, tasks, nowAbs, todayN, onSchedule, onUnsch
                       );
                     })}
                   </ul>
+                  {dumpRes.items.some((it) => it.pick && (it.kind === "exam" || it.kind === "study")) && (cram.active
+                    ? <p className="note" style={{ margin: 0 }}>Cram mode is on, so your study plan updates when you add these.</p>
+                    : <label className="check"><input type="checkbox" checked={planStudy} onChange={(e) => setPlanStudy(e.target.checked)} /> Turn on Cram mode and plan study time for these exams now</label>)}
                   <button className="btn small" type="button" disabled={!dumpRes.items.some((it) => it.pick)} onClick={addPicked}>
                     Add {dumpRes.items.filter((it) => it.pick).length} selected
                   </button>
@@ -1285,7 +1318,7 @@ function App() {
   const [tasks, setTasks] = useStoredState(TASKS_KEY, [], migrateTasks);
   const [settings, setSettings] = useStoredState(SETTINGS_KEY,
     { windDown: "21:00", planFrom: "", lookahead: 7, dailyCapH: 4, hourPx: ZOOM_DEFAULT, view: "week" });
-  const [cram, setCram] = useStoredState(CRAM_KEY, { active: false, exams: [] });
+  const [cram, setCram] = useStoredState(CRAM_KEY, CRAM_DEFAULT);
   const [cramMsg, setCramMsg] = useState(null);
   const [todos, setTodos] = useStoredState(TODOS_KEY, []);
   const [grades] = useStoredState(GRADES_KEY, { classes: [] });
@@ -1340,24 +1373,101 @@ function App() {
     const first = added.filter((t) => t.fits).sort((a, b) => a.segments[0].start - b.segments[0].start)[0];
     if (first && list.length === 1) setAnchor(keyOf(dayOfAbs(first.segments[0].start)));
   };
-  // From the AI brain dump: exams go to Cram mode (not applied until you hit Apply there), events onto the calendar.
-  const addAiExams = (items) => {
-    if (!items.length) return;
-    setCram((c) => ({ ...c, exams: [...(c.exams || []), ...items.map((it, i) => {
-      const name = it.class_name && !normName(it.title).includes(normName(it.class_name)) ? `${it.class_name} ${it.title}` : it.title;
-      const cls = classForExam(grades.classes, name), gs = cls && gradeSummary(cls);
-      return { id: newId(), name, when: it.when, length: it.minutes > 0 ? it.minutes : 90, cooked: gs ? gs.cooked : 3, days: null,
-        color: ((c.exams || []).length + i) % COLORS.length };
-    })] }));
-    setCramMsg({ at: Date.now(), what: `Added ${items.length} exam${items.length === 1 ? "" : "s"} to Cram mode`, note: "They aren't on the calendar until you apply them there.", moved: [], missing: 0, link: true });
+  /* ----- Routing to-dos / brain dump / AI suggestions into the rest of the app ----- */
+  const examName = (it) => (it.class_name && !normName(it.title).includes(normName(it.class_name)) ? `${it.class_name} ${it.title}` : it.title);
+  // Exams you already have, by name ("MA 261 midterm" matches "MA261 Midterm 2"-style names either way)
+  const findExam = (list, name) => {
+    const n = normName(name);
+    return n ? list.find((e) => normName(e.name) === n) || list.find((e) => normName(e.name).includes(n) || n.includes(normName(e.name))) : null;
   };
-  const addAiEvents = (items) => {
-    const list = items.map((it) => {
-      const at = absFromLocal(it.when), d = dayOfAbs(at), start = at - d * DAY_MIN;
-      const end = /^\d{2}:\d{2}$/.test(it.end_time) && toMin(it.end_time) > start ? toMin(it.end_time) : start + 60;
-      return { id: newId(), title: it.title, date: keyOf(d), start: clamp(start, 0, DAY_MIN - 5), end: Math.min(end, DAY_MIN), color: 2 };
+  const toEvents = (it, lastDay) => {
+    const at = absFromLocal(it.when);
+    if (at == null) return [];
+    const d0 = dayOfAbs(at), start = clamp(at - d0 * DAY_MIN, 0, DAY_MIN - 5);
+    const end = /^\d{2}:\d{2}$/.test(it.end_time || "") && toMin(it.end_time) > start ? toMin(it.end_time) : start + 60;
+    const repeat = it.repeat === "daily" || it.repeat === "weekdays" ? it.repeat : "none";
+    // Repeating blocks run until the date given, else through the last exam (at least two weeks), max 60 days.
+    const until = repeat === "none" ? d0
+      : Math.min(d0 + 60, isDateKey(it.repeat_until) ? dayNum(it.repeat_until) : Math.max(d0 + 13, lastDay ?? 0));
+    const seriesId = repeat === "none" ? undefined : newId(), out = [];
+    for (let d = d0; d <= until; d++) {
+      const wd = weekday(keyOf(d));
+      if (repeat === "weekdays" && (wd === 0 || wd === 6)) continue;
+      out.push({ id: newId(), title: it.title, date: keyOf(d), start, end: Math.min(end, DAY_MIN), color: 2, seriesId });
+    }
+    return out;
+  };
+  /* Turn on / update Cram mode right here (the same thing Apply does in Cram mode): exams become fixed events,
+     study sessions get planned, homework is re-planned around them. */
+  const applyCram = (nextCram, nextEvents, what, baseTasks = tasks) => {
+    const P = cramPlan({ cram: nextCram, events: nextEvents, tasks: baseTasks, settings, nowAbs });
+    const before = studyByDay(baseTasks), after = studyByDay(P.nextTasks);
+    setEvents(P.nextEvents);
+    setTasks(P.nextTasks);
+    setCram({ ...nextCram, active: true, hwCapByDay: P.alloc.hwCapByDay, appliedSig: P.sig });
+    const moved = [...new Set([...Object.keys(before), ...Object.keys(after)].map(Number))].sort((a, b) => a - b)
+      .map((d) => ({ d, delta: (after[d] || 0) - (before[d] || 0) })).filter((x) => Math.abs(x.delta) >= 15);
+    const missing = P.alloc.lost - P.alloc.recovered;
+    setCramMsg({ at: Date.now(), what, missing, link: !cram.active,
+      note: !cram.active ? `Cram mode is on: ${fmtDur(Object.values(after).reduce((a, b) => a + b, 0))} of study planned across ${Object.keys(after).length} days.` : "",
+      moved: moved.map(({ d, delta }) => `${d === todayN ? "today" : fmtDate(keyOf(d), { weekday: "short" })} ${delta > 0 ? "+" : "−"}${fmtDur(Math.abs(delta))}`) });
+  };
+  /* Bring in items from the brain dump, quick add or an AI suggestion, each to the feature that handles it:
+     to-dos -> to-do list, exams -> Cram mode, "study for X" -> folded into X's Cram plan, events -> calendar.
+     opts.planStudy: also plan study time now (turns Cram mode on). opts.removeTodoId: a to-do this replaces. */
+  const importItems = (items, opts = {}) => {
+    const exams = (cram.exams || []).map((e) => ({ ...e })); // copies: cooked levels may change below
+    const newTodos = [], newEvents = [], folded = [];
+    let examsAdded = 0;
+    // Exams first, so "study for X" items can find X.
+    items.filter((it) => it.kind === "exam" && absFromLocal(it.when) != null).forEach((it) => {
+      const name = examName(it), cls = classForExam(grades.classes, name), gs = cls && gradeSummary(cls);
+      const cooked = Math.max(it.cooked || 3, gs ? gs.cooked : 1); // the more cooked signal wins
+      const same = findExam(exams, name);
+      if (same && same.when === it.when) { same.cooked = Math.max(same.cooked, cooked); return; }
+      exams.push({ id: newId(), name, when: it.when, length: it.minutes > 0 ? it.minutes : 90, cooked, days: null, color: exams.length % COLORS.length });
+      examsAdded++;
     });
-    if (list.length) changeEvents([...events, ...list], `Added ${list.length} event${list.length === 1 ? "" : "s"} from your brain dump`);
+    items.filter((it) => it.kind === "study").forEach((it) => {
+      const ex = findExam(exams, it.exam_title) || findExam(exams, examName(it));
+      if (ex) { if ((it.cooked || 3) > ex.cooked) ex.cooked = it.cooked; folded.push(ex.name); }
+      else newTodos.push(it); // no exam to attach it to: keep it as a to-do so nothing is lost
+    });
+    items.filter((it) => it.kind === "todo").forEach((it) => newTodos.push(it));
+    const lastDay = exams.map((e) => absFromLocal(e.when)).filter((x) => x != null).map(dayOfAbs).reduce((a, b) => Math.max(a, b), todayN);
+    items.filter((it) => it.kind === "event").forEach((it) => newEvents.push(...toEvents(it, lastDay)));
+
+    const removed = opts.removeTodoId ? todos.find((t) => t.id === opts.removeTodoId) : null;
+    const removedTask = removed && taskFor(removed, tasks);
+    const baseTasks = removedTask ? tasks.filter((t) => t.id !== removedTask.id) : tasks;
+    setTodos((ts) => [...ts.filter((t) => t.id !== opts.removeTodoId), ...newTodos.map((it) => ({
+      id: newId(), done: false, taskId: null, title: it.title, cls: it.class_name || "", due: absFromLocal(it.when),
+      minutes: it.minutes > 0 ? it.minutes : null, dread: it.dread || 3, note: it.note || "" }))]);
+
+    const nextCram = { ...cram, exams };
+    const nextEvents = newEvents.length ? [...events, ...newEvents] : events;
+    const examsChanged = JSON.stringify(exams) !== JSON.stringify(cram.exams || []);
+    const parts = [examsAdded && `${examsAdded} exam${examsAdded === 1 ? "" : "s"}`, newEvents.length && `${newEvents.length} event block${newEvents.length === 1 ? "" : "s"}`,
+      newTodos.length && `${newTodos.length} to-do${newTodos.length === 1 ? "" : "s"}`].filter(Boolean);
+    const what = `Added ${parts.join(", ") || "it"}${folded.length ? ` (study folded into ${[...new Set(folded)].join(", ")})` : ""}`;
+    if ((cram.active && (examsChanged || newEvents.length || removedTask)) || (opts.planStudy && exams.length)) {
+      applyCram(nextCram, nextEvents, what, baseTasks);
+    } else {
+      if (removedTask) setTasks(baseTasks);
+      if (newEvents.length) setEvents(nextEvents);
+      if (examsChanged) {
+        setCram(nextCram);
+        setCramMsg({ at: Date.now(), what, missing: 0, moved: [], note: "They're in Cram mode, not planned yet.",
+          action: { label: "Plan study now", run: (c, ev) => applyCram(c, ev, "Planned your study time") } });
+      } else if (parts.length) setCramMsg({ at: Date.now(), what, missing: 0, moved: [], note: " " });
+    }
+    return { examsAdded, folded: folded.length, events: newEvents.length, todos: newTodos.length };
+  };
+  const setCooked = (id, cooked) => {
+    const nextCram = { ...cram, exams: (cram.exams || []).map((e) => (e.id === id ? { ...e, cooked } : e)) };
+    const ex = nextCram.exams.find((e) => e.id === id);
+    if (cram.active) applyCram(nextCram, events, `${ex ? ex.name : "Exam"} set to ${cooked}/5`);
+    else setCram(nextCram);
   };
   /* What the AI coach sees: open to-dos, the next 7 days (fixed events, planned work, free time), exams, grades. */
   const snapshot = () => {
@@ -1381,7 +1491,11 @@ function App() {
           free_minutes_before_wind_down: usableMinutes(busy, a, b),
         };
       }),
-      cram_mode: { on: !!cram.active, exams: (cram.exams || []).map((e) => ({ name: e.name, when: e.when, cooked_1_to_5: e.cooked })) },
+      cram_mode: {
+        plan_status: !cram.active ? "off" : cramPlan({ cram, events, tasks, settings, nowAbs }).sig === cram.appliedSig ? "on, up to date" : "on, out of date",
+        exams: (cram.exams || []).map((e) => ({ id: e.id, name: e.name, when: e.when, cooked_1_to_5: e.cooked,
+          study_planned: fmtDur(tasks.filter((t) => t.study && t.examId === e.id && t.fits).reduce((x, t) => x + t.total, 0)) })),
+      },
       grades: grades.classes.map((c) => {
         const g = gradeSummary(c);
         return g && { class: c.name, target: c.target, average_so_far: g.current == null ? null : Math.round(g.current),
@@ -1401,18 +1515,7 @@ function App() {
 
   /* While Cram mode is on, a change to your fixed events re-runs the Cram plan (same as hitting Apply there):
      busy days lose study time, lighter days pick it up, homework is re-planned around it. */
-  const replanCram = (nextEvents, what) => {
-    const P = cramPlan({ cram, events: nextEvents, tasks, settings, nowAbs });
-    const before = studyByDay(tasks), after = studyByDay(P.nextTasks);
-    setEvents(P.nextEvents);
-    setTasks(P.nextTasks);
-    setCram((c) => ({ ...c, hwCapByDay: P.alloc.hwCapByDay, appliedSig: P.sig }));
-    const moved = [...new Set([...Object.keys(before), ...Object.keys(after)].map(Number))].sort((a, b) => a - b)
-      .map((d) => ({ d, delta: (after[d] || 0) - (before[d] || 0) })).filter((x) => Math.abs(x.delta) >= 5);
-    const missing = P.alloc.lost - P.alloc.recovered;
-    setCramMsg({ at: Date.now(), what, missing,
-      moved: moved.map(({ d, delta }) => `${d === todayN ? "today" : fmtDate(keyOf(d), { weekday: "short" })} ${delta > 0 ? "+" : "−"}${fmtDur(Math.abs(delta))}`) });
-  };
+  const replanCram = (nextEvents, what) => applyCram(cram, nextEvents, what);
   const changeEvents = (next, what) => (cram.active ? replanCram(next, what) : setEvents(next));
   const dayName = (date) => (date === now.today ? "today" : fmtDate(date, { weekday: "short", month: "short", day: "numeric" }));
   const addEvent = (ev) => changeEvents([...events, ev], `Added ${ev.title} (${dayName(ev.date)})`);
@@ -1574,7 +1677,8 @@ function App() {
         </section>
         <TodoPanel todos={todos} setTodos={setTodos} tasks={tasks} nowAbs={nowAbs} todayN={todayN}
           onSchedule={scheduleTodos} onUnschedule={(id) => setTasks((ts) => ts.filter((t) => t.id !== id))} onJump={openDay}
-          onAddEvents={addAiEvents} onAddExams={addAiExams} snapshot={snapshot} />
+          onImport={importItems} onSetCooked={setCooked} onApplyCram={() => applyCram(cram, events, cram.active ? "Updated Cram mode" : "Turned on Cram mode")}
+          cram={cram} snapshot={snapshot} />
         </div>
       </div>
       {cramMsg && (
@@ -1583,6 +1687,7 @@ function App() {
             <b>{cramMsg.what}.</b>{" "}
             {cramMsg.note || (cramMsg.moved.length ? `Cram plan updated: ${cramMsg.moved.join(", ")}.` : "Cram plan checked: study time didn't need to move.")}
             {cramMsg.link && <> <a href="cram.html">Open Cram mode →</a></>}
+            {cramMsg.action && <> <button className="toast-btn" type="button" onClick={() => { cramMsg.action.run(cram, events); }}>{cramMsg.action.label}</button></>}
             {cramMsg.missing > 0 && <span className="warn"> {fmtDur(cramMsg.missing)} of study no longer fits. <a href="cram.html">Fix it in Cram mode →</a></span>}
           </div>
           <button className="x" aria-label="Dismiss" onClick={() => setCramMsg(null)}>×</button>

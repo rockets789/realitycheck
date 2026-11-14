@@ -15,6 +15,8 @@ const STORAGE_KEY = "realitycheck.events.v1";
 const TASKS_KEY = "realitycheck.tasks.v1";
 const SETTINGS_KEY = "realitycheck.settings.v1";
 const CRAM_KEY = "realitycheck.cram.v1";
+// Cram mode settings before you change anything. Every page uses these, so they all compute the same plan.
+const CRAM_DEFAULT = { active: false, exams: [], dailyHours: 6, hwShare: 0.25, effort: 0.8, stretchH: 1.5, hwCapByDay: {}, appliedSig: null };
 
 const COLORS = [
   { bg: "#e6eefb", edge: "#4a72c4" }, // blue
@@ -549,7 +551,10 @@ function parseQuickTodo(text, nowAbs) {
 
   const title = s.replace(/\s(?:due|by|on|at)\s*$/i, " ").replace(/\s+/g, " ").trim();
   const cls = (title.match(/^([A-Za-z]{2,5}\s?\d{3,5})\b/) || [])[1] || "";
-  return { title: title || text.trim(), due, minutes, cls: cls.toUpperCase() };
+  // "chem quiz mon 10am" / "study for the MA 261 midterm" is an exam: Cram mode should plan the studying.
+  const examLike = /\b(midterms?|finals?|exams?|quiz(zes)?|tests?)\b/i.test(title) && !/\b(unit|test cases?|tests? (?:for|on) (?:the )?code)\b/i.test(title);
+  const examName = title.replace(/^(?:study(?:ing)?|review(?:ing)?|prep(?:are)?|cram(?:ming)?)\s+(?:for\s+)?(?:the\s+|my\s+)?/i, "").trim() || title;
+  return { title: title || text.trim(), due, minutes, cls: cls.toUpperCase(), examLike, examName, hasTime: time != null };
 }
 
 /* ============ 5. Grades ============

@@ -114,7 +114,6 @@
 const { useState, useEffect } = React;
 
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()));
-const CRAM_DEFAULT = { active: false, exams: [], dailyHours: 6, hwShare: 0.25, effort: 0.8, stretchH: 1.5, hwCapByDay: {}, appliedSig: null };
 const BIG_MIN = 60; // fixed events this long or longer count as "big stuff" in the way
 const REPEATS = { once: "Just once", daily: "Every day", weekdays: "Weekdays (Mon–Fri)" };
 const fmtSpan = (a, b) => `${fmt(a)} – ${fmt(b)}`;
