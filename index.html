@@ -99,6 +99,23 @@
   /* Time grid (day + week) */
   .tl-scroll { position: relative; max-height: 74vh; overflow: auto; }
   .tl-scroll.expanded { max-height: none; }
+
+  /* Pop-out calendar */
+  .pop-btn { display: inline-grid; place-items: center; width: 34px; padding: 0; }
+  .pop-btn svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .pop-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .tl-card.popped { position: fixed; inset: clamp(8px, 2.5vw, 28px); z-index: 70; display: flex; flex-direction: column; border-radius: 20px;
+    border: 1px solid rgba(30, 58, 95, .25); box-shadow: 0 40px 100px rgba(15, 30, 50, .35), 0 10px 30px rgba(15, 30, 50, .18); will-change: transform; }
+  .tl-card.popped .tl-scroll, .tl-card.popped .month { flex: 1 1 auto; min-height: 0; max-height: none; overflow: auto; }
+  .tl-card.popped .tl-head { padding: 16px 22px; }
+  .pop-backdrop { position: fixed; inset: 0; z-index: 69; background: rgba(23, 48, 79, .32); backdrop-filter: blur(6px) saturate(.9); -webkit-backdrop-filter: blur(6px) saturate(.9);
+    animation: pop-fade .3s ease-out; }
+  body.popping-in .pop-backdrop { animation: pop-fade-out .26s ease-in forwards; }
+  @keyframes pop-fade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes pop-fade-out { from { opacity: 1; } to { opacity: 0; } }
+  body.cal-popped { overflow: hidden; }
+  body.cal-popped .rail { display: none; }
+  @media (prefers-reduced-motion: reduce) { .pop-backdrop { animation: none; } }
   .day-heads { position: sticky; top: 0; z-index: 8; display: grid; background: var(--card); border-bottom: 1px solid var(--line); }
   .day-head { border: none; border-left: 1px solid var(--line); background: none; padding: 6px 4px 8px; text-align: center; cursor: pointer; font-size: 12px; color: var(--muted); }
   .day-head:hover { background: var(--paper); }
@@ -222,7 +239,7 @@
   .pomo-settings { gap: 10px; }
   .pomo-settings .btn[aria-pressed="true"] { border-color: var(--ink); font-weight: 600; }
   .check { display: flex; gap: 8px; align-items: center; font-size: 13px; }
-  .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); width: min(560px, calc(100% - 32px)); z-index: 50;
+  .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); width: min(560px, calc(100% - 32px)); z-index: 90;
     background: var(--ink); color: #fff; border-radius: 12px; padding: 11px 14px; font-size: 14px; display: flex; gap: 10px; align-items: flex-start;
     box-shadow: 0 10px 30px rgba(0,0,0,.18); }
   .toast > div { flex: 1; }
@@ -327,7 +344,7 @@
   .day-head.drop-over, .mcell.drop-over { background: var(--navy-soft); outline-color: var(--navy); }
   .drop-line { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--navy); z-index: 7; pointer-events: none; }
   .drop-line span { position: absolute; left: 4px; top: 2px; background: var(--navy); color: #fff; font-family: "DM Mono", monospace; font-size: 11px; padding: 1px 6px; border-radius: 5px; white-space: nowrap; }
-  .drag-ghost { position: fixed; z-index: 80; pointer-events: none; background: var(--card); border: 1.5px solid var(--navy); border-radius: 10px; padding: 7px 11px;
+  .drag-ghost { position: fixed; z-index: 100; pointer-events: none; background: var(--card); border: 1.5px solid var(--navy); border-radius: 10px; padding: 7px 11px;
     box-shadow: 0 12px 28px rgba(30, 58, 95, .25); display: flex; flex-direction: column; font-size: 12.5px; width: max-content; max-width: 280px; white-space: nowrap; }
   .drag-ghost b { overflow: hidden; text-overflow: ellipsis; }
   .drag-ghost b { font-size: 14px; color: var(--navy-ink); }
@@ -355,7 +372,7 @@
   .todo-edit { all: unset; cursor: pointer; overflow-wrap: anywhere; }
   .todo-edit:hover { text-decoration: underline; }
   .todo-edit:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 3px; }
-  .modal-back { position: fixed; inset: 0; background: rgba(31, 29, 26, .35); z-index: 60; display: grid; place-items: center; padding: 16px; }
+  .modal-back { position: fixed; inset: 0; background: rgba(31, 29, 26, .35); z-index: 95; display: grid; place-items: center; padding: 16px; }
   .modal { background: var(--card); border-radius: 16px; padding: 18px 20px 20px; width: min(480px, 100%); max-height: calc(100vh - 32px); overflow-y: auto;
     box-shadow: 0 20px 60px rgba(0,0,0,.25); }
   .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
@@ -2388,6 +2405,68 @@ function App() {
 
   /* ----- Zoom: buttons, slider, and ctrl/⌘ + scroll or trackpad pinch, anchored so the spot you're looking at stays put ----- */
   const scrollRef = useRef(null), bodyRef = useRef(null), anchorRef = useRef(null), hourPxRef = useRef(hourPx);
+
+  /* ----- Pop-out calendar: the card grows from where it sits into a floating full-screen window ----- */
+  const [popped, setPopped] = useState(false);
+  const cardRef = useRef(null), popFrom = useRef(null), popPrevZoom = useRef(null), popAnim = useRef(null);
+  const [placeholderH, setPlaceholderH] = useState(0);
+  const motionOK = !(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+  // Grow from the old spot with one uniform scale (no squished text), plus a fade. `then` runs once when it ends;
+  // a timer backs up the finish event, so the window can never get stuck mid-animation.
+  const flyFrom = (el, rect, reverse, then) => {
+    const to = el.getBoundingClientRect();
+    const sc = Math.min(rect.width / to.width, rect.height / to.height);
+    const dx = rect.left + rect.width / 2 - (to.left + to.width / 2), dy = rect.top + rect.height / 2 - (to.top + to.height / 2);
+    const frames = [{ transform: `translate(${dx}px, ${dy}px) scale(${sc})`, opacity: 0.55 }, { transform: "none", opacity: 1 }];
+    const duration = reverse ? 260 : 380;
+    const anim = el.animate(reverse ? frames.reverse() : frames, { duration, easing: "cubic-bezier(.2, .8, .2, 1)", fill: "both" });
+    let ended = false;
+    const end = () => { if (ended) return; ended = true; if (then) then(); anim.cancel(); };
+    anim.onfinish = end;
+    setTimeout(end, duration + 150);
+    return anim;
+  };
+  const popOut = () => {
+    const el = cardRef.current;
+    if (!el || popped) return;
+    popFrom.current = el.getBoundingClientRect();
+    setPlaceholderH(popFrom.current.height);
+    popPrevZoom.current = hourPx;
+    setPopped(true);
+  };
+  const popIn = () => {
+    const el = cardRef.current;
+    if (!el || !popped || popAnim.current) return;
+    const done = () => {
+      // Back in its spot in the same frame the animation ends (no flash of the big window)
+      ReactDOM.flushSync(() => {
+        setPopped(false);
+        if (popPrevZoom.current != null) updateSettings({ hourPx: popPrevZoom.current });
+      });
+    };
+    if (!motionOK || !popFrom.current) return done();
+    document.body.classList.add("popping-in");
+    popAnim.current = flyFrom(el, popFrom.current, true, () => { done(); popAnim.current = null; document.body.classList.remove("popping-in"); });
+  };
+  useLayoutEffect(() => {
+    const el = cardRef.current;
+    if (!popped || !el) return;
+    // Fit the whole day (9 AM – 11 PM) in the window's height.
+    const sc = scrollRef.current;
+    if (sc && view !== "month") {
+      const heads = sc.querySelector(".day-heads");
+      const avail = sc.clientHeight - (heads ? heads.offsetHeight : 60) - 30;
+      updateSettings({ hourPx: clamp(Math.floor(avail / ((DAY_END - DAY_START) / 60)), ZOOM_MIN, ZOOM_MAX) });
+    }
+    if (motionOK && popFrom.current) flyFrom(el, popFrom.current, false);
+  }, [popped]);
+  useEffect(() => {
+    if (!popped) return;
+    document.body.classList.add("cal-popped");
+    const onKey = (e) => { if (e.key === "Escape" && !document.querySelector(".modal")) popIn(); };
+    window.addEventListener("keydown", onKey);
+    return () => { document.body.classList.remove("cal-popped"); window.removeEventListener("keydown", onKey); };
+  }, [popped]);
   hourPxRef.current = hourPx;
   const zoomTo = (next, offsetY) => {
     next = clamp(Math.round(next), ZOOM_MIN, ZOOM_MAX);
@@ -2465,7 +2544,10 @@ function App() {
 
         <div className="stack" style={{ minWidth: 0 }}>
         <DropCtx.Provider value={dropValue}>
-        <section className="card tl-card" id="f-calendar">
+        {popped && <div className="pop-placeholder" style={{ height: placeholderH }} aria-hidden="true" />}
+        {popped && <div className="pop-backdrop" onMouseDown={popIn} aria-hidden="true" />}
+        <section className={"card tl-card" + (popped ? " popped" : "")} id="f-calendar" ref={cardRef}
+          role={popped ? "dialog" : undefined} aria-modal={popped || undefined} aria-label={popped ? "Calendar" : undefined}>
           <div className="tl-head">
             <div className="cal-nav">
               <button className="btn ghost small" onClick={() => setAnchor(now.today)}>Today</button>
@@ -2483,6 +2565,13 @@ function App() {
               </div>
               <input className="jump" type="date" aria-label="Jump to date" value={anchor}
                 onChange={(e) => isDateKey(e.target.value) && setAnchor(e.target.value)} />
+              {popped
+                ? <button className="icon-btn pop-btn" type="button" aria-label="Close full screen (Esc)" title="Close (Esc)" onClick={popIn}>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>
+                  </button>
+                : <button className="icon-btn pop-btn" type="button" aria-label="Pop out the calendar" title="Pop out to full screen" onClick={popOut}>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+                  </button>}
             </div>
           </div>
           <div className="tl-sub">
@@ -2525,7 +2614,7 @@ function App() {
               onPickSlot={(date, m) => setDraft({ date, m, at: Date.now() /* new object so clicking the same slot re-fills */ })}
               expanded={!!settings.calExpanded} />
           )}
-          {view !== "month" && (
+          {view !== "month" && !popped && (
             <button className="expand-bar" type="button" aria-expanded={!!settings.calExpanded}
               onClick={() => updateSettings({ calExpanded: !settings.calExpanded })}>
               {settings.calExpanded ? "▴ Collapse calendar" : "▾ Expand calendar (show the whole day)"}
