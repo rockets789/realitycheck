@@ -38,10 +38,34 @@
   header.top { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
   .brand h1 { font-family: "Fraunces", serif; font-weight: 700; font-size: 34px; letter-spacing: -0.02em; margin: 0; }
   .brand h1 span { color: var(--accent); }
+  .brand-home { all: unset; cursor: pointer; border-radius: 6px; }
+  .brand-home:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+  .more-menu { position: relative; }
+  .more-btn { all: unset; box-sizing: border-box; width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; cursor: pointer;
+    color: var(--muted); border: 1px solid transparent; }
+  .more-btn:hover, .more-btn[aria-expanded="true"] { background: var(--card); border-color: var(--line-strong); color: var(--ink); }
+  .more-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .more-btn svg { width: 20px; height: 20px; fill: currentColor; }
+  .more-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 60; background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 6px; box-shadow: 0 12px 30px rgba(0,0,0,.12); display: flex; flex-direction: column; min-width: 200px; width: max-content; }
+  .more-item { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+  .more-item:hover, .more-item:focus-visible { background: var(--paper); }
+  .more-item i { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(0,0,0,.15); }
+  .more-item .chev { margin-left: auto; color: var(--muted); font-size: 12px; }
+  .color-panel { display: flex; flex-direction: column; gap: 10px; padding: 6px 10px 10px; }
+  .color-swatches { display: grid; grid-template-columns: repeat(6, 26px); gap: 8px; }
+  .swatch { all: unset; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
+  .swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--ink); }
+  .swatch:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+  .color-custom { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); cursor: pointer; }
+  .color-custom input { width: 32px; height: 26px; padding: 0; border: 1px solid var(--line-strong); border-radius: 6px; background: none; cursor: pointer; }
   .brand p { margin: 4px 0 0; color: var(--muted); }
   .date-pill { font-family: "DM Mono", monospace; font-size: 13px; background: var(--card); border: 1px solid var(--line); padding: 6px 12px; border-radius: 999px; }
 
   .layout { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 20px; align-items: start; }
+  /* Tasks + To-do sit side by side under the calendar; each card is only as tall as its content. */
+  .lower-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; align-items: start; }
+  .lower-row > .card { min-width: 0; }
   @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
 
   .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
@@ -303,7 +327,7 @@
   .cram-btn { background: var(--accent); border-color: var(--accent); }
   .exam-hint { margin: -2px 0 0; font-size: 13px; background: var(--accent-soft); border-radius: 10px; padding: 8px 11px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   /* Needs rescheduling (flat dark blue) */
-  :root { --navy: #1e3a5f; --navy-ink: #17304f; --navy-soft: #eef2f8; --navy-line: #c9d5e6; }
+  :root { --navy: var(--accent); --navy-ink: var(--accent-ink); --navy-soft: #eef2f8; --navy-line: var(--accent-line, #c9d5e6); }
   .tray { margin: 12px 14px 4px; border: 1px solid var(--line-strong); border-left: 4px solid var(--navy); border-radius: 12px; background: #ece6da; padding: 10px 12px; }
   .tray.empty { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 8px 12px; }
   .tray.empty b { color: var(--navy-ink); font-size: 13.5px; }
@@ -387,12 +411,16 @@
   .rn-toggle.on { background: var(--ink); color: #fff; }
   body.tunnel .rail { display: none; }
   body.tunnel .app { padding-left: 20px !important; }
-  .rightnow { --tone: var(--accent); max-width: 620px; margin: 4vh auto 0; background: var(--card); border: 1px solid var(--line); border-top: 6px solid var(--tone);
+  .rn-homebar { display: flex; justify-content: center; margin: 2vh 0 14px; }
+  .rightnow { --tone: var(--accent); max-width: 620px; margin: 0 auto; background: var(--card); border: 1px solid var(--line); border-top: 6px solid var(--tone);
     border-radius: 20px; padding: 22px 26px 26px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; }
   .rightnow.rest { --tone: var(--sage); }
   .rightnow.event { --tone: #4a72c4; }
   .rightnow.exam { --tone: #a3261b; }
-  .rn-top { align-self: stretch; display: flex; justify-content: space-between; align-items: center; }
+  .rn-top { align-self: stretch; display: flex; justify-content: center; align-items: center; }
+  .rn-home { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; padding: 8px 14px; background: var(--card); color: var(--ink); border: 1px solid var(--line-strong); }
+  .rn-home:hover { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .rn-home svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
   .rn-label { font-family: "DM Mono", monospace; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--tone); font-weight: 500; }
   .rn-title { font-family: "Fraunces", serif; font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 4px 0 0; letter-spacing: -0.01em; overflow-wrap: anywhere; }
   .rn-clock { position: relative; width: min(280px, 70vw); aspect-ratio: 1; }
@@ -957,10 +985,16 @@ function RightNow({ tasks, events, windDown, todayN, missedCount, onDone, onExit
   const tone = cur ? (cur.kind === "event" ? (cur.exam ? "exam" : "event") : seg.kind === "break" ? "rest" : "work") : "rest";
 
   return (
+    <>
+    <div className="rn-homebar">
+      <button className="btn rn-home" type="button" onClick={onExit} title="Leave Right now and go back to the full calendar (Esc)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>
+        Home
+      </button>
+    </div>
     <div className={`rightnow ${tone}`} id="f-now">
       <div className="rn-top">
         <span className="rn-label">{label}</span>
-        <button className="btn ghost small" type="button" onClick={onExit} title="Back to the full calendar (Esc)">Show everything</button>
       </div>
       <h2 className="rn-title">{title}</h2>
       {until != null && (
@@ -989,6 +1023,61 @@ function RightNow({ tasks, events, windDown, todayN, missedCount, onDone, onExit
           <span className="rn-label">Up next</span>
           <div><b>{next.exam && <span className="exam-badge">Exam</span>}{next.title}</b></div>
           <div className="rn-when">{fmtWhen(next.start, todayN)} · in {fmtDur(Math.max(1, Math.round(next.start - now)))}</div>
+        </div>
+      )}
+    </div>
+    </>
+  );
+}
+
+/* ---------- "⋯" menu: app settings (Color for now; colors are applied by rail.js on every page) ---------- */
+function MoreMenu() {
+  const A = window.RC_ACCENT;
+  const [color, setColor] = useState(() => (A ? A.get() : "#1e3a5f"));
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState(null); // null = list of items, "color" = color options
+  const ref = useRef(null);
+  useEffect(() => {
+    const onAccent = (e) => setColor(e.detail);
+    window.addEventListener("rc:accent", onAccent);
+    return () => window.removeEventListener("rc:accent", onAccent);
+  }, []);
+  useEffect(() => {
+    if (!open) { setTab(null); return; }
+    const away = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const esc = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
+  }, [open]);
+  if (!A) return null;
+  const pick = (hex) => A.set(hex);
+  const same = (a, b) => a.toLowerCase() === b.toLowerCase();
+  return (
+    <div className="more-menu" ref={ref}>
+      <button className="more-btn" type="button" aria-label="More options" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)} title="More">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
+      </button>
+      {open && (
+        <div className="more-pop" role="menu">
+          <button className="more-item" type="button" role="menuitem" aria-expanded={tab === "color"} onClick={() => setTab(tab === "color" ? null : "color")}>
+            <i style={{ background: color }} />Color<span className="chev">{tab === "color" ? "▴" : "▾"}</span>
+          </button>
+          {tab === "color" && (
+            <div className="color-panel">
+              <div className="color-swatches">
+                {A.PRESETS.map((p) => (
+                  <button key={p.hex} type="button" className="swatch" style={{ background: p.hex }} aria-label={p.name} title={p.name}
+                    aria-pressed={same(color, p.hex)} onClick={() => pick(p.hex)} />
+                ))}
+              </div>
+              <label className="color-custom">
+                <input type="color" value={color} onChange={(e) => pick(e.target.value)} aria-label="Custom color" />
+                Custom
+              </label>
+              {!same(color, A.DEFAULT) && <button className="linkbtn" type="button" onClick={() => pick(A.DEFAULT)}>Reset to navy</button>}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1955,7 +2044,7 @@ function App() {
   const [events, setEvents] = useStoredState(STORAGE_KEY, sampleFor(dateKey(new Date())), migrateEvents);
   const [tasks, setTasks] = useStoredState(TASKS_KEY, [], migrateTasks);
   const [settings, setSettings] = useStoredState(SETTINGS_KEY,
-    { windDown: "21:00", planFrom: "", lookahead: 7, dailyCapH: 4, hourPx: ZOOM_DEFAULT, view: "week" });
+    { windDown: "21:00", planFrom: "", lookahead: 7, dailyCapH: 4, hourPx: ZOOM_DEFAULT, view: "month" });
   const [cram, setCram] = useStoredState(CRAM_KEY, CRAM_DEFAULT);
   const [cramMsg, setCramMsg] = useState(null);
   const [todos, setTodos] = useStoredState(TODOS_KEY, []);
@@ -1966,7 +2055,7 @@ function App() {
   const [anchor, setAnchor] = useState(now.today);
   const updateSettings = (patch) => setSettings((s) => ({ ...s, ...patch }));
 
-  const view = ["day", "week", "month"].includes(settings.view) ? settings.view : "week";
+  const view = ["day", "week", "month"].includes(settings.view) ? settings.view : "month";
   const hourPx = clamp(Number(settings.hourPx) || ZOOM_DEFAULT, ZOOM_MIN, ZOOM_MAX);
   const todayN = dayNum(now.today);
   const nowAbs = todayN * DAY_MIN + now.min;
@@ -2377,11 +2466,13 @@ function App() {
   /* ----- "Right now" tunnel vision: only the current block, a live countdown, and what's next ----- */
   const focus = !!settings.focusMode;
   const setFocus = (on) => { updateSettings({ focusMode: on }); window.scrollTo(0, 0); };
+  // Home: the normal calendar (Right now off, back to today, top of the page)
+  const goHome = () => { updateSettings({ focusMode: false }); setEditing(null); setAnchor(now.today); window.scrollTo(0, 0); };
   useEffect(() => {
     document.body.classList.toggle("tunnel", focus); // hides the feature rail too
     const onOpen = (e) => {
       if (e.detail === "focus") setFocus(true);
-      if (e.detail === "home") { updateSettings({ focusMode: false }); setEditing(null); setAnchor(now.today); }
+      if (e.detail === "home") goHome();
     };
     window.addEventListener("rc:open", onOpen);
     return () => window.removeEventListener("rc:open", onOpen);
@@ -2516,20 +2607,21 @@ function App() {
     <div className="app">
       <header className="top">
         <div className="brand">
-          <h1>Reality<span>Check</span></h1>
+          <h1><button type="button" className="brand-home" onClick={goHome} title="Back to home">Reality<span>Check</span></button></h1>
           <p>How long will this <em>actually</em> take me, and what's left of my week?</p>
         </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <button className={"btn rn-toggle" + (focus ? " on" : "")} type="button" aria-pressed={focus} onClick={() => setFocus(!focus)}
             title="Hide everything except what you should be doing right now">{focus ? "◉ Right now: on" : "◎ Right now"}</button>
           {!focus && <a className="btn ghost grades-link" href="grades.html">Grade check</a>}
           {!focus && <a className="btn cram-link" href="cram.html">Cram mode{cram.active ? " · on" : ""} →</a>}
           <div className="date-pill">{todayLabel}</div>
+          {!focus && <MoreMenu />}
         </div>
       </header>
 
       {focus ? (
-        <RightNow tasks={tasks} events={events} windDown={windDown} todayN={todayN} missedCount={missed.length} onDone={finishNow} onExit={() => setFocus(false)} />
+        <RightNow tasks={tasks} events={events} windDown={windDown} todayN={todayN} missedCount={missed.length} onDone={finishNow} onExit={goHome} />
       ) : (
       <div className="layout">
         <aside className="stack">
@@ -2537,9 +2629,6 @@ function App() {
           <Pomodoro tasks={tasks} nowAbs={nowAbs} />
           <AddEventForm onAdd={addEvent} draft={draft} defaultDate={view === "day" ? anchor : now.today} />
           <TaskEstimator onAdd={addTask} todayN={todayN} lookahead={lookahead} />
-          <TaskList tasks={tasks} missedIds={missedIds} cram={cram} absEvents={absEvents} nowAbs={nowAbs} todayN={todayN}
-            settings={{ ...settings, lookahead: settings.lookahead, dailyCapH: settings.dailyCapH }} onSettings={updateSettings}
-            onOptimize={cram.active ? () => replanCram(events, "Re-planned with Cram mode") : optimize} onRemove={(id) => setTasks((ts) => ts.filter((t) => t.id !== id))} onJump={openDay} onEdit={editTask} />
         </aside>
 
         <div className="stack" style={{ minWidth: 0 }}>
@@ -2622,10 +2711,16 @@ function App() {
           )}
         </section>
         </DropCtx.Provider>
-        <TodoPanel todos={todos} setTodos={setTodos} tasks={tasks} nowAbs={nowAbs} todayN={todayN}
-          onSchedule={scheduleTodos} onUnschedule={(id) => setTasks((ts) => ts.filter((t) => t.id !== id))} onJump={openDay}
-          onImport={importItems} onSetCooked={setCooked} onApplyCram={() => applyCram(cram, events, cram.active ? "Updated Cram mode" : "Turned on Cram mode")}
-          onEdit={editTodo} cram={cram} snapshot={snapshot} />
+        {/* Tasks + To-do side by side under the calendar */}
+        <div className="lower-row">
+          <TaskList tasks={tasks} missedIds={missedIds} cram={cram} absEvents={absEvents} nowAbs={nowAbs} todayN={todayN}
+            settings={{ ...settings, lookahead: settings.lookahead, dailyCapH: settings.dailyCapH }} onSettings={updateSettings}
+            onOptimize={cram.active ? () => replanCram(events, "Re-planned with Cram mode") : optimize} onRemove={(id) => setTasks((ts) => ts.filter((t) => t.id !== id))} onJump={openDay} onEdit={editTask} />
+          <TodoPanel todos={todos} setTodos={setTodos} tasks={tasks} nowAbs={nowAbs} todayN={todayN}
+            onSchedule={scheduleTodos} onUnschedule={(id) => setTasks((ts) => ts.filter((t) => t.id !== id))} onJump={openDay}
+            onImport={importItems} onSetCooked={setCooked} onApplyCram={() => applyCram(cram, events, cram.active ? "Updated Cram mode" : "Turned on Cram mode")}
+            onEdit={editTodo} cram={cram} snapshot={snapshot} />
+        </div>
         </div>
       </div>
       )}

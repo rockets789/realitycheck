@@ -2,8 +2,41 @@
  * Click one and it scrolls there if it's off-screen, then the border lights up (and the cursor lands in the right box).
  * Features on another page open that page with #feature, which this script picks up on load.
  * Plain JS (no React), shared by index.html, cram.html and grades.html. Elements are found by id at click time. */
+/* Accent color: the user can pick one (Color button on the calendar). Saved in localStorage and
+ * applied here, on every page, before anything draws. Sets --accent and the soft/ink shades derived from it. */
 (function () {
-  const S = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+  const KEY = "realitycheck.accent.v1", DEFAULT = "#1e3a5f";
+  const PRESETS = [
+    { name: "Navy", hex: "#1e3a5f" }, { name: "Teal", hex: "#1f5f66" }, { name: "Forest", hex: "#2f5d46" },
+    { name: "Plum", hex: "#5b3a6e" }, { name: "Rust", hex: "#9a4a24" }, { name: "Charcoal", hex: "#33363b" },
+  ];
+  const valid = (h) => typeof h === "string" && /^#[0-9a-f]{6}$/i.test(h);
+  const mix = (hex, to, t) => "#" + [1, 3, 5].map((i) => {
+    const a = parseInt(hex.slice(i, i + 2), 16), b = parseInt(to.slice(i, i + 2), 16);
+    return Math.round(a + (b - a) * t).toString(16).padStart(2, "0");
+  }).join("");
+  function apply(hex) {
+    if (!valid(hex)) hex = DEFAULT;
+    const s = document.documentElement.style;
+    s.setProperty("--accent", hex);
+    s.setProperty("--accent-soft", hex.toLowerCase() === DEFAULT ? "#e7edf5" : mix(hex, "#ffffff", 0.89));
+    s.setProperty("--accent-ink", mix(hex, "#000000", 0.2));
+    s.setProperty("--accent-line", mix(hex, "#ffffff", 0.75));
+  }
+  function get() { try { const v = localStorage.getItem(KEY); return valid(v) ? v : DEFAULT; } catch (e) { return DEFAULT; } }
+  function set(hex) {
+    if (!valid(hex)) hex = DEFAULT;
+    try { if (hex === DEFAULT) localStorage.removeItem(KEY); else localStorage.setItem(KEY, hex); } catch (e) {}
+    apply(hex);
+    window.dispatchEvent(new CustomEvent("rc:accent", { detail: hex }));
+  }
+  apply(get());
+  window.addEventListener("storage", (e) => { if (e.key === KEY) { apply(get()); window.dispatchEvent(new CustomEvent("rc:accent", { detail: get() })); } });
+  window.RC_ACCENT = { KEY, DEFAULT, PRESETS, get, set };
+})();
+
+(function () {
+  const S =(d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
   const ICON = {
     home: S('<path d="M3 11l9-7 9 7"/><path d="M5 10v10h5v-6h4v6h5V10"/>'),
     now: S('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>'),
