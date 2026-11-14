@@ -13,7 +13,7 @@
 <style>
   :root {
     --paper: #f6f2ea; --card: #fffdf8; --ink: #1f1d1a; --muted: #6f6a61; --line: #e4ddd0; --line-strong: #cfc6b6;
-    --accent: #e0603a; --accent-soft: #fbe3d9; --sage: #5d8a6a; --sage-soft: #e3eee5; --radius: 14px;
+    --accent: #1e3a5f; --accent-soft: #e7edf5; --accent-ink: #17304f; --warn: #b3362b; --warn-soft: #f7e3e0; --warn-ink: #7d2a22; --sage: #5d8a6a; --sage-soft: #e3eee5; --radius: 14px;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--paper); color: var(--ink); }
@@ -47,7 +47,7 @@
   .btn:disabled { opacity: .4; cursor: not-allowed; }
   .btn.ghost { background: transparent; color: var(--ink); border-color: var(--line-strong); font-weight: 500; }
   .btn.hot { background: var(--accent); border-color: var(--accent); }
-  .error { color: var(--accent); font-size: 13px; margin: 0; }
+  .error { color: var(--warn); font-size: 13px; margin: 0; }
   .note { font-size: 12px; color: var(--muted); margin: 0; }
   .linkbtn { background: none; border: none; padding: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: 12px; }
   .x { border: none; background: none; cursor: pointer; color: var(--muted); font-size: 18px; line-height: 1; padding: 0 2px; }
@@ -96,8 +96,8 @@
   .hw-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
   .hw-list li { background: var(--paper); border-radius: 10px; padding: 8px 11px; font-size: 13px; }
   .hw-list li b { font-weight: 600; }
-  .hw-list .warn { color: var(--accent); font-weight: 500; }
-  .banner { background: var(--accent-soft); color: #8a3a22; border-radius: 10px; padding: 9px 11px; font-size: 13px; margin: 0; }
+  .hw-list .warn { color: var(--warn); font-weight: 500; }
+  .banner { background: var(--warn-soft); color: var(--warn-ink); border-radius: 10px; padding: 9px 11px; font-size: 13px; margin: 0; }
   .banner.ok { background: var(--sage-soft); color: #2f5a3b; }
   .empty { font-size: 14px; color: var(--muted); margin: 0; }
   .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
@@ -451,11 +451,11 @@ function App() {
                           {COOKED_LABELS[e.cooked - 1]} · exam {fmtWhen(e.at, todayN)}
                           {firstDay != null ? ` · studying from ${fmtDate(keyOf(firstDay), { weekday: "short", month: "short", day: "numeric" })}` : ""}
                           {recovered > 0 && ` · ${fmtDur(recovered)} moved off busy days`}
-                          {lost - recovered > 0 && <span style={{ color: "var(--accent)", fontWeight: 600 }}> · {fmtDur(lost - recovered)} lost to busy days{" "}
-                            <button className="linkbtn" style={{ color: "var(--accent)" }}
+                          {lost - recovered > 0 && <span style={{ color: "var(--warn)", fontWeight: 600 }}> · {fmtDur(lost - recovered)} lost to busy days{" "}
+                            <button className="linkbtn" style={{ color: "var(--warn)" }}
                               onClick={() => update({ exams: cram.exams.map((x) => (x.id === e.id ? { ...x, days: Math.min(21, e.days + 1) } : x)) })}>
                               start a day earlier</button></span>}
-                          {missing > 0 && <span style={{ color: "var(--accent)", fontWeight: 600 }}> · {fmtDur(missing)} didn't fit around your events</span>}
+                          {missing > 0 && <span style={{ color: "var(--warn)", fontWeight: 600 }}> · {fmtDur(missing)} didn't fit around your events</span>}
                         </div>
                       </div>
                     );

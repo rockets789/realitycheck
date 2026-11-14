@@ -13,7 +13,7 @@
 <style>
   :root {
     --paper: #f6f2ea; --card: #fffdf8; --ink: #1f1d1a; --muted: #6f6a61; --line: #e4ddd0; --line-strong: #cfc6b6;
-    --accent: #e0603a; --accent-soft: #fbe3d9; --sage: #5d8a6a; --sage-soft: #e3eee5; --radius: 14px;
+    --accent: #1e3a5f; --accent-soft: #e7edf5; --accent-ink: #17304f; --warn: #b3362b; --warn-soft: #f7e3e0; --warn-ink: #7d2a22; --sage: #5d8a6a; --sage-soft: #e3eee5; --radius: 14px;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--paper); color: var(--ink); }
@@ -44,7 +44,7 @@
   .btn.ghost { background: transparent; color: var(--ink); border-color: var(--line-strong); font-weight: 500; }
   .btn.small { padding: 5px 10px; font-size: 13px; }
   .note { font-size: 12px; color: var(--muted); margin: 0; }
-  .warn { color: var(--accent); }
+  .warn { color: var(--warn); }
   .linkbtn { background: none; border: none; padding: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: 12px; align-self: flex-start; }
   .x { border: none; background: none; cursor: pointer; color: var(--muted); font-size: 18px; line-height: 1; padding: 0 2px; }
   .empty { font-size: 14px; color: var(--muted); margin: 0; }
@@ -71,7 +71,7 @@
   /* The verdict */
   .verdict { --tone: var(--sage); --tone-soft: var(--sage-soft); border-top: 6px solid var(--tone); }
   .verdict.c3 { --tone: #c9932b; --tone-soft: #fdf0d6; }
-  .verdict.c4 { --tone: var(--accent); --tone-soft: var(--accent-soft); }
+  .verdict.c4 { --tone: var(--warn); --tone-soft: var(--warn-soft); }
   .verdict.c5 { --tone: #a3261b; --tone-soft: #f6d9d4; }
   .v-label { font-family: "DM Mono", monospace; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--tone); font-weight: 500; }
   .v-head { font-family: "Fraunces", serif; font-size: 30px; line-height: 1.15; font-weight: 700; margin: 6px 0 4px; letter-spacing: -0.01em; }
@@ -110,7 +110,7 @@
   .cat-row .bar i { display: block; height: 100%; }
   .cat-row .meta { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
 
-  .cram-tie { background: #fff4e0; border-radius: 10px; padding: 10px 12px; font-size: 13px; display: flex; flex-direction: column; gap: 8px; }
+  .cram-tie { background: var(--accent-soft); border-radius: 10px; padding: 10px 12px; font-size: 13px; display: flex; flex-direction: column; gap: 8px; }
   .cram-tie .line { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 </style>
 </head>
@@ -126,7 +126,7 @@ const { useState, useEffect } = React;
 
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()));
 const GRADES_DEFAULT = { classes: [], selected: null };
-const TONE = ["var(--sage)", "var(--sage)", "#c9932b", "var(--accent)", "#a3261b"];
+const TONE = ["var(--sage)", "var(--sage)", "#c9932b", "var(--warn)", "#a3261b"];
 const pct = (x, d = 0) => `${x.toFixed(d)}%`;
 
 const item = (name, score, outOf) => ({ id: newId(), name, score, outOf });

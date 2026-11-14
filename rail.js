@@ -5,6 +5,7 @@
 (function () {
   const S = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
   const ICON = {
+    home: S('<path d="M3 11l9-7 9 7"/><path d="M5 10v10h5v-6h4v6h5V10"/>'),
     now: S('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>'),
     today: S('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
     timer: S('<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/>'),
@@ -21,6 +22,7 @@
   const CAL = "index.html";
   // target: element id to light up; focus: what gets the cursor; open: asks the page to open a panel first
   const ITEMS = [
+    { key: "home", label: "Home", page: CAL, home: true },
     { key: "now", label: "Right now", page: CAL, target: "f-now", open: "focus" },
     { key: "today", label: "Today", page: CAL, target: "f-today" },
     { key: "timer", label: "Timer", page: CAL, target: "f-pomo" },
@@ -50,7 +52,7 @@
     align-items: center; gap: 2px; color: var(--muted, #666); font: 500 10.5px/1.15 "DM Sans", system-ui, sans-serif; text-align: center; }
   .rail button:hover { background: var(--paper, #f4f4f4); color: var(--ink, #111); }
   .rail button:focus-visible { outline: 2px solid var(--ink, #111); outline-offset: 1px; }
-  .rail button[aria-current="true"] { background: var(--ink, #111); color: #fff; }
+  .rail button[aria-current="true"] { background: var(--accent, #1e3a5f); color: #fff; }
   .rail button.ai { color: #4b3fa8; }
   .rail button.ai[aria-current="true"] { background: #4b3fa8; color: #fff; }
   .rail svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
@@ -64,8 +66,8 @@
   }
   .spotlight { animation: rc-spot 2.4s ease-out; position: relative; z-index: 1; }
   @keyframes rc-spot {
-    0%, 35% { box-shadow: 0 0 0 3px var(--accent, #e0603a), 0 0 0 9px rgba(224, 96, 58, .22); }
-    100% { box-shadow: 0 0 0 3px rgba(224, 96, 58, 0), 0 0 0 9px rgba(224, 96, 58, 0); }
+    0%, 35% { box-shadow: 0 0 0 3px var(--accent, #1e3a5f), 0 0 0 9px rgba(30, 58, 95, .2); }
+    100% { box-shadow: 0 0 0 3px rgba(30, 58, 95, 0), 0 0 0 9px rgba(30, 58, 95, 0); }
   }
   .spotlight.ai-spot { animation-name: rc-spot-ai; }
   @keyframes rc-spot-ai {
@@ -102,6 +104,15 @@
   }
 
   async function go(item) {
+    // Home: the calendar's normal view (Right now off, today, top of the page)
+    if (item.home) {
+      if (here !== CAL) { location.href = CAL; return; }
+      window.dispatchEvent(new CustomEvent("rc:open", { detail: "home" }));
+      window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+      setCurrent(null);
+      if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+      return;
+    }
     if (item.page !== here) { location.href = `${item.page}#${item.key}`; return; }
     if (item.open) window.dispatchEvent(new CustomEvent("rc:open", { detail: item.open }));
     const el = await waitFor(item.target);
@@ -147,7 +158,7 @@
         cancelAnimationFrame(raf);
         raf = requestAnimationFrame(() => {
           let best = null, bestD = Infinity;
-          items.filter((it) => it.page === CAL && !it.ai).forEach((it) => {
+          items.filter((it) => it.page === CAL && !it.ai && it.target).forEach((it) => {
             const el = document.getElementById(it.target);
             if (!el) return;
             const r = el.getBoundingClientRect();

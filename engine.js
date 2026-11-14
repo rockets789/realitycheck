@@ -294,6 +294,7 @@ function planTasks(tasks, busy, windows, opt) {
  * (marked overCramCap) when that gets it in on time. */
 function planAll(tasks, busy, windows, opt) {
   opt = Object.assign({}, SCHED, opt);
+  tasks = tasks.filter((t) => !t.parked); // parked in the tray: waiting for you to give it a time
   const cram = opt.cram;
   const hwCap = cram && cram.hwCapByDay
     ? (d) => (d in cram.hwCapByDay ? cram.hwCapByDay[d] : capValue(opt.dailyCap, d))

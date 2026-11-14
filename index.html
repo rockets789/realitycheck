@@ -18,8 +18,12 @@
     --muted: #6f6a61;
     --line: #e4ddd0;
     --line-strong: #cfc6b6;
-    --accent: #e0603a;      /* warnings / now line */
-    --accent-soft: #fbe3d9;
+    --accent: #1e3a5f;      /* flat dark blue: brand, today, now line, primary actions */
+    --accent-soft: #e7edf5;
+    --accent-ink: #17304f;
+    --warn: #b3362b;        /* only for real problems: late, overdue, clashes, errors */
+    --warn-soft: #f7e3e0;
+    --warn-ink: #7d2a22;
     --sage: #5d8a6a;        /* free time / "your life" */
     --sage-soft: #e3eee5;
     --radius: 14px;
@@ -61,7 +65,7 @@
   .btn:disabled { opacity: .4; cursor: not-allowed; }
   .btn.ghost { background: transparent; color: var(--ink); border-color: var(--line-strong); font-weight: 500; }
   .btn.small { padding: 5px 10px; font-size: 13px; }
-  .error { color: var(--accent); font-size: 13px; margin: 0; }
+  .error { color: var(--warn); font-size: 13px; margin: 0; }
 
   .slider { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; }
   .slider .name { font-size: 13px; font-weight: 500; }
@@ -117,12 +121,12 @@
   .compact .event .time { font-size: 10.5px; }
   .event .del { position: absolute; top: 4px; right: 4px; border: none; background: rgba(255,255,255,.85); border-radius: 6px; width: 22px; height: 22px; cursor: pointer; opacity: 0; font-size: 14px; line-height: 1; }
   .event:hover .del, .event .del:focus-visible { opacity: 1; }
-  .event.conflict { outline: 2px dashed var(--accent); outline-offset: 1px; }
-  .event.exam { border: 2px solid var(--accent); border-left-width: 5px; box-shadow: 0 2px 10px rgba(224, 96, 58, .18); }
+  .event.conflict { outline: 2px dashed var(--warn); outline-offset: 1px; }
+  .event.exam { border: 2px solid var(--accent); border-left-width: 5px; box-shadow: 0 2px 10px rgba(30, 58, 95, .18); }
   .exam-badge { display: inline-block; font-family: "DM Mono", monospace; font-size: 9.5px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase;
     background: var(--accent); color: #fff; border-radius: 4px; padding: 0 4px; margin-right: 5px; vertical-align: 1px; }
   .chip.exam { font-weight: 600; outline: 1.5px solid var(--accent); }
-  .conflict-badge { display: inline-block; font-size: 10.5px; font-weight: 600; color: var(--accent); background: var(--accent-soft); border-radius: 5px; padding: 0 5px; margin-left: 4px; }
+  .conflict-badge { display: inline-block; font-size: 10.5px; font-weight: 600; color: var(--warn); background: var(--warn-soft); border-radius: 5px; padding: 0 5px; margin-left: 4px; }
 
   .now-line { position: absolute; left: -4px; right: 0; height: 0; border-top: 2px solid var(--accent); z-index: 6; pointer-events: none; }
   .now-line::before { content: ""; position: absolute; left: -5px; top: -6px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
@@ -148,20 +152,20 @@
   .phase-row .bar i { display: block; height: 100%; }
   .phase-row p { margin: 0; font-size: 12px; color: var(--muted); }
   .added { font-size: 13px; margin: 8px 0 0; color: var(--sage); font-weight: 500; }
-  .added.warn { color: var(--accent); }
+  .added.warn { color: var(--warn); }
 
   /* Flexible tasks */
   .task-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
   .task-item { background: var(--paper); border-radius: 10px; padding: 9px 11px; border-left: 4px solid #4a72c4; }
-  .task-item.unfit { border-left-color: var(--accent); }
+  .task-item.unfit { border-left-color: var(--warn); }
   .task-item.done { opacity: .6; }
   .task-item .top { display: flex; gap: 8px; align-items: baseline; }
   .task-item .ti-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; text-align: left; border: none; background: none; padding: 0; cursor: pointer; }
   .task-item .ti-title:hover { text-decoration: underline; }
   .task-item .meta { font-size: 12px; color: var(--muted); }
-  .task-item .meta.warn { color: var(--accent); font-weight: 500; }
+  .task-item .meta.warn { color: var(--warn); font-weight: 500; }
   .x { border: none; background: none; cursor: pointer; color: var(--muted); font-size: 17px; line-height: 1; padding: 0 2px; }
-  .banner { background: var(--accent-soft); color: #8a3a22; border-radius: 10px; padding: 9px 11px; font-size: 13px; margin: 0; }
+  .banner { background: var(--warn-soft); color: var(--warn-ink); border-radius: 10px; padding: 9px 11px; font-size: 13px; margin: 0; }
   .linkbtn { background: none; border: none; padding: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: 12px; align-self: flex-start; }
   .empty { font-size: 13px; color: var(--muted); margin: 0; }
 
@@ -172,10 +176,10 @@
   .tseg.deep   { border-color: #4a72c4; background: repeating-linear-gradient(135deg, #e6eefb 0 6px, #f4f7fd 6px 12px); }
   .tseg.break  { border-color: #5d8a6a; border-style: dotted; background: #f2f7f3; color: var(--sage); }
   .tseg.buffer { border-color: #a79e8d; background: repeating-linear-gradient(135deg, #efebe3 0 6px, #f8f5ef 6px 12px); }
-  .tseg.conflict { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .tseg.conflict { outline: 2px solid var(--warn); outline-offset: 1px; }
   .tseg-label { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.35; }
-  .deadline-line { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--accent); z-index: 4; pointer-events: none; }
-  .deadline-line span { position: absolute; left: 4px; right: 4px; top: -18px; font-family: "DM Mono", monospace; font-size: 11px; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .deadline-line { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--warn); z-index: 4; pointer-events: none; }
+  .deadline-line span { position: absolute; left: 4px; right: 4px; top: -18px; font-family: "DM Mono", monospace; font-size: 11px; color: var(--warn); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .deadline-line span b { font-weight: 500; background: var(--card); padding: 0 4px; }
   .winddown { position: absolute; left: 0; right: 0; bottom: 0; border-top: 1px solid var(--sage); pointer-events: none;
     background: repeating-linear-gradient(45deg, transparent 0 8px, rgba(93,138,106,.08) 8px 16px); }
@@ -223,7 +227,7 @@
     box-shadow: 0 10px 30px rgba(0,0,0,.18); }
   .toast > div { flex: 1; }
   .toast .x { color: #fff; opacity: .7; }
-  .toast .warn { color: #ffb59c; }
+  .toast .warn { color: #ffb4a8; }
   .toast a { color: #fff; font-weight: 600; }
   .toast-btn { border: 1px solid #fff; background: #fff; color: var(--ink); border-radius: 8px; padding: 3px 10px; font-weight: 600; cursor: pointer; font-size: 13px; margin-left: 4px; }
   /* Calendar expand */
@@ -255,7 +259,7 @@
   .chip-cls { font-family: "DM Mono", monospace; font-size: 10.5px; background: var(--paper); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; margin-left: 6px; color: var(--muted); font-weight: 500; vertical-align: 1px; }
   .todo-groups { display: flex; flex-direction: column; gap: 12px; }
   .todo-groups h3 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
-  .todo-groups h3.warn { color: var(--accent); }
+  .todo-groups h3.warn { color: var(--warn); }
   .todo-groups h3 span { font-family: "DM Mono", monospace; font-weight: 400; margin-left: 4px; }
   .todo-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
   .todo { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; gap: 10px; align-items: center; background: var(--paper); border-radius: 10px; padding: 8px 10px; }
@@ -263,7 +267,7 @@
   .todo.done .todo-title { text-decoration: line-through; color: var(--muted); }
   .todo-title { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
   .todo-meta { font-size: 12px; color: var(--muted); display: block; }
-  .todo-meta .warn, .warn { color: var(--accent); }
+  .todo-meta .warn, .warn { color: var(--warn); }
   .mins input { width: 52px; padding: 1px 4px; font-size: 12px; border-radius: 6px; margin: 0 2px; }
   .linkbtn.inline { font-size: 12px; color: var(--ink); }
   .ai-panel { background: #f1effb; border: 1px solid #ddd8f3; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
@@ -280,38 +284,56 @@
   .sugg-list p { margin: 2px 0 6px; font-size: 13.5px; }
   .done-tag { color: var(--sage); font-size: 12px; }
   .cram-btn { background: var(--accent); border-color: var(--accent); }
-  .exam-hint { margin: -2px 0 0; font-size: 13px; background: #fff4e0; border-radius: 10px; padding: 8px 11px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  /* Needs rescheduling */
-  .tray { margin: 12px 14px 4px; border: 1.5px solid var(--accent); border-radius: 14px; background: #fff7f2; padding: 10px 12px;
-    animation: tray-glow 2.6s ease-in-out infinite; }
-  @keyframes tray-glow {
-    0%, 100% { box-shadow: 0 0 10px rgba(224, 96, 58, .14); }
-    50% { box-shadow: 0 0 0 4px rgba(224, 96, 58, .10), 0 0 22px rgba(224, 96, 58, .30); }
-  }
+  .exam-hint { margin: -2px 0 0; font-size: 13px; background: var(--accent-soft); border-radius: 10px; padding: 8px 11px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  /* Needs rescheduling (flat dark blue) */
+  :root { --navy: #1e3a5f; --navy-ink: #17304f; --navy-soft: #eef2f8; --navy-line: #c9d5e6; }
+  .tray { margin: 12px 14px 4px; border: 1px solid var(--line-strong); border-left: 4px solid var(--navy); border-radius: 12px; background: #ece6da; padding: 10px 12px; }
+  .tray.empty { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 8px 12px; }
+  .tray.empty b { color: var(--navy-ink); font-size: 13.5px; }
+  .tray.empty .note { flex: 1; min-width: 220px; }
+  .tray.empty .linkbtn { color: var(--navy); font-weight: 600; }
+  .sample-tag { font-family: "DM Mono", monospace; font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: .06em; background: var(--navy-soft);
+    color: var(--navy); border-radius: 4px; padding: 1px 5px; margin-left: 6px; vertical-align: 2px; }
   .tray-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-  .tray-head b { color: #8a3a22; }
+  .tray-head b { color: var(--navy-ink); }
   .tray-head .note { flex: 1; min-width: 200px; }
-  .tray-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 12px; margin-left: 4px; padding: 0 6px; }
+  .tray-head .linkbtn { color: var(--navy); }
+  .tray-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; border-radius: 999px; background: var(--navy); color: #fff; font-size: 12px; margin-left: 4px; padding: 0 6px; }
   .tray-list { list-style: none; margin: 10px 0 2px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-  .tray-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; background: var(--card); border: 1px solid var(--accent-soft);
-    border-radius: 10px; padding: 8px 10px; cursor: grab; animation: tray-in .5s ease-out; }
-  .tray-item:active { cursor: grabbing; }
+  .tray-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; background: var(--card); border: 1px solid var(--navy-line);
+    border-radius: 10px; padding: 8px 10px 8px 6px; cursor: grab; user-select: none; animation: tray-in .45s ease-out; transition: opacity .15s, transform .15s; }
+  .tray-item:hover { border-color: var(--navy); }
+  .tray-item.lifted, .event.lifted, .tseg.lifted { opacity: .4; }
+  .tray-item.lifted { transform: scale(.98); }
+  .tray.drop-over { border-color: var(--navy); border-style: dashed; background: #e4ddcf; }
+  .kind-tag { font-family: "DM Mono", monospace; font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: .06em; border-radius: 4px; padding: 1px 5px; margin-left: 6px; vertical-align: 2px; }
+  .kind-tag.missed { background: var(--warn-soft); color: var(--warn-ink); }
+  .kind-tag.parked { background: var(--navy-soft); color: var(--navy); }
+  .kind-tag.event { background: #e6eefb; color: #2f4f8a; }
   @keyframes tray-in { from { opacity: 0; transform: translateY(-8px) scale(.98); } to { opacity: 1; transform: none; } }
-  .tray-item .grip { color: var(--muted); font-size: 16px; line-height: 1; }
+  .tray-item .grip { color: var(--navy); background: var(--navy-soft); display: grid; place-items: center; width: 24px; height: 36px; border-radius: 6px; touch-action: none; cursor: grab; }
+  .tray-item .grip:hover { background: var(--navy-line); }
   .tray-main { display: flex; flex-direction: column; min-width: 0; font-size: 13px; }
   .tray-main b { font-size: 14px; overflow-wrap: anywhere; }
   .tray-main > span { color: var(--muted); font-size: 12px; }
   .tray-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
-  .tray-go { background: var(--accent); border-color: var(--accent); }
-  @media (max-width: 640px) { .tray-item { grid-template-columns: auto minmax(0, 1fr); } .tray-actions { grid-column: 1 / -1; justify-content: flex-start; } }
-  @media (prefers-reduced-motion: reduce) { .tray, .tray-item { animation: none; } }
-  .tseg.missed { opacity: .35; border-color: var(--accent) !important; border-style: dashed; filter: grayscale(.6); }
-  .col.droppable { background-color: #fff4ee; }
-  .day-head.droppable, .mcell.droppable { outline: 1.5px dashed var(--accent); outline-offset: -3px; }
-  .day-head.drop-over, .mcell.drop-over { background: var(--accent-soft); }
-  .drop-line { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--accent); z-index: 7; pointer-events: none; }
-  .drop-line span { position: absolute; left: 4px; top: 2px; background: var(--accent); color: #fff; font-family: "DM Mono", monospace; font-size: 11px; padding: 1px 6px; border-radius: 5px; white-space: nowrap; }
-  .rn-missed { margin: 0; font-size: 13px; background: var(--accent-soft); color: #8a3a22; border-radius: 10px; padding: 8px 12px; align-self: stretch; }
+  .tray-go { background: var(--navy); border-color: var(--navy); }
+  @media (max-width: 760px) { .tray-item { grid-template-columns: auto minmax(0, 1fr); } .tray-actions { grid-column: 1 / -1; justify-content: flex-start; } }
+  @media (prefers-reduced-motion: reduce) { .tray-item { animation: none; } }
+  .tseg.missed { opacity: .35; border-color: var(--navy) !important; border-style: dashed; filter: grayscale(.7); }
+  body.dragging-task, body.dragging-task * { cursor: grabbing !important; user-select: none; }
+  .col.droppable { background-color: #f3f6fb; }
+  .day-head.droppable, .mcell.droppable { outline: 1.5px dashed var(--navy-line); outline-offset: -3px; }
+  .day-head.drop-over, .mcell.drop-over { background: var(--navy-soft); outline-color: var(--navy); }
+  .drop-line { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--navy); z-index: 7; pointer-events: none; }
+  .drop-line span { position: absolute; left: 4px; top: 2px; background: var(--navy); color: #fff; font-family: "DM Mono", monospace; font-size: 11px; padding: 1px 6px; border-radius: 5px; white-space: nowrap; }
+  .drag-ghost { position: fixed; z-index: 80; pointer-events: none; background: var(--card); border: 1.5px solid var(--navy); border-radius: 10px; padding: 7px 11px;
+    box-shadow: 0 12px 28px rgba(30, 58, 95, .25); display: flex; flex-direction: column; font-size: 12.5px; width: max-content; max-width: 280px; white-space: nowrap; }
+  .drag-ghost b { overflow: hidden; text-overflow: ellipsis; }
+  .drag-ghost b { font-size: 14px; color: var(--navy-ink); }
+  .drag-ghost span { color: var(--navy); font-family: "DM Mono", monospace; font-size: 11.5px; }
+  .rn-missed { margin: 0; font-size: 13px; background: var(--navy-soft); color: var(--navy-ink); border-radius: 10px; padding: 8px 12px; align-self: stretch; }
+  .rn-missed .linkbtn { color: var(--navy); font-weight: 600; }
 
   /* Recovery */
   .recovery { position: absolute; left: 0; right: 0; z-index: 1; pointer-events: none; border-top: 1px dashed var(--sage);
@@ -340,7 +362,7 @@
   .modal-head h2 { font-family: "Fraunces", serif; font-size: 21px; font-weight: 500; margin: 0; }
   .modal-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
   .modal-actions a.btn { text-decoration: none; }
-  .btn.danger { color: var(--accent); border-color: var(--accent-soft); }
+  .btn.danger { color: var(--warn); border-color: var(--warn-soft); }
   .error { margin: 0; }
 
   /* Right now */
@@ -373,7 +395,7 @@
   .rn-when { font-size: 13px; color: var(--muted); }
   .grades-link { text-decoration: none; font-size: 14px; padding: 7px 12px; }
   .cram-link { text-decoration: none; background: var(--accent); border-color: var(--accent); font-size: 14px; padding: 7px 12px; }
-  .cram-note { background: #fff4e0; border-radius: 10px; padding: 9px 11px; font-size: 13px; margin: 0; }
+  .cram-note { background: var(--accent-soft); border-radius: 10px; padding: 9px 11px; font-size: 13px; margin: 0; }
   .cram-note a { color: var(--ink); font-weight: 600; }
 </style>
 </head>
@@ -485,7 +507,7 @@ function segmentsOnDay(tasks, n) {
     if (!t.fits) return;
     t.segments.forEach((s, i) => {
       if (dayOfAbs(s.start) !== n) return;
-      out.push({ ...s, ls: s.start - n * DAY_MIN, le: s.end - n * DAY_MIN, taskId: t.id, title: t.title, i, color: t.study ? t.color : null,
+      out.push({ ...s, ls: s.start - n * DAY_MIN, le: s.end - n * DAY_MIN, taskId: t.id, title: t.title, i, color: t.study ? t.color : null, study: !!t.study, total: t.total,
         sessionStart: i === 0 || t.segments[i - 1].end !== s.start });
     });
   });
@@ -658,7 +680,7 @@ function TaskEstimator({ onAdd, todayN, lookahead }) {
 function TaskList({ tasks: allTasks, missedIds, cram, absEvents, nowAbs, todayN, settings, onSettings, onOptimize, onRemove, onJump, onEdit }) {
   const tasks = allTasks.filter((t) => !t.study);
   const study = allTasks.filter((t) => t.study);
-  const unfit = tasks.filter((t) => !t.fits);
+  const unfit = tasks.filter((t) => !t.fits && !t.parked);
   const clashing = tasks.filter((t) => t.fits && clashWith(t, absEvents));
   return (
     <div className="card" id="f-tasks">
@@ -698,7 +720,7 @@ function TaskList({ tasks: allTasks, missedIds, cram, absEvents, nowAbs, todayN,
                   <div className="meta">
                     {t.fits
                       ? `${missedIds.has(t.id) ? "Missed, needs rescheduling · " : done ? "Done · " : ""}${fmtWhen(segs[0].start, todayN)} – ${fmtWhen(segs[segs.length - 1].end, todayN)}${n > 1 ? ` · ${n} sessions` : ""}`
-                      : "Doesn't fit yet"}
+                      : t.parked ? "Parked in the tray, needs a time" : "Doesn't fit yet"}
                     {` · you guessed ${fmtDur(t.guess)}`}
                   </div>
                   {st && !done && (
@@ -745,8 +767,8 @@ function TaskList({ tasks: allTasks, missedIds, cram, absEvents, nowAbs, todayN,
 }
 
 /* ---------- Needs rescheduling: tasks whose time passed without being checked off ---------- */
-// Shared with the calendar grid so day columns, day headers and month cells can take a dropped task.
-const DropCtx = React.createContext({ dragging: null, missed: new Set(), dropAt: () => {} });
+// Shared with the calendar grid: which task is being dragged and what it's over ({ date, m } where m is a minute of day or null).
+const DropCtx = React.createContext({ drag: null, missed: new Set(), startDrag: () => {} });
 const MISSED_WINDOW = 14 * DAY_MIN; // older than two weeks: let it go
 function missedTasks(tasks, todos, nowAbs) {
   const doneTodo = new Set(todos.filter((td) => td.done).map((td) => td.id));
@@ -756,56 +778,89 @@ function missedTasks(tasks, todos, nowAbs) {
     return end <= nowAbs && end > nowAbs - MISSED_WINDOW;
   }).sort((a, b) => a.segments[0].start - b.segments[0].start);
 }
-// Drag helpers for anything that accepts a dropped task (date, and the minute of day if it was dropped at a time)
-function useDropTarget(date, minuteAt) {
-  const ctx = React.useContext(DropCtx);
-  const [over, setOver] = useState(null);
-  if (!ctx.dragging) return { over: null, props: {} };
-  return {
-    over,
-    props: {
-      onDragOver: (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setOver(minuteAt ? minuteAt(e) : true); },
-      onDragLeave: (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOver(null); },
-      onDrop: (e) => { e.preventDefault(); const m = minuteAt ? minuteAt(e) : null; setOver(null); ctx.dropAt(date, m); },
-    },
-  };
+/* Drop targets are marked with data-drop-date (and data-px-per-min on day columns, so a drop lands at a time).
+   Dragging uses pointer events rather than the browser's drag-and-drop: it works the same with a mouse, trackpad or finger. */
+function dropTargetAt(x, y) {
+  const hit = document.elementFromPoint(x, y);
+  const el = hit && hit.closest("[data-drop-date],[data-drop-tray]");
+  if (!el) return null;
+  if (el.dataset.dropTray) return { tray: true };
+  const ppm = Number(el.dataset.pxPerMin);
+  if (!ppm) return { date: el.dataset.dropDate, m: null };
+  const r = el.getBoundingClientRect();
+  return { date: el.dataset.dropDate, m: clamp(DAY_START + Math.round((y - r.top) / ppm / 15) * 15, DAY_START, DAY_END - 15) };
 }
-
 function DropDay({ as: Tag = "div", date, className, children, ...rest }) {
-  const drop = useDropTarget(date);
-  return <Tag className={className + (drop.props.onDrop ? " droppable" : "") + (drop.over ? " drop-over" : "")} {...rest} {...drop.props}>{children}</Tag>;
+  const { drag } = React.useContext(DropCtx);
+  const over = drag && drag.over && drag.over.date === date;
+  return <Tag className={className + (drag ? " droppable" : "") + (over ? " drop-over" : "")} data-drop-date={date} {...rest}>{children}</Tag>;
 }
 
-function RescheduleTray({ items, nowAbs, todayN, windDown, onMove, onDone, onRemove, onDragStart, onDragEnd }) {
+const GRIP = (
+  <svg viewBox="0 0 12 18" width="12" height="18"><g fill="currentColor"><circle cx="3" cy="3" r="1.6"/><circle cx="9" cy="3" r="1.6"/><circle cx="3" cy="9" r="1.6"/><circle cx="9" cy="9" r="1.6"/><circle cx="3" cy="15" r="1.6"/><circle cx="9" cy="15" r="1.6"/></g></svg>
+);
+/* The tray holds anything that needs a (new) time:
+   - missed: a task whose time passed without being checked off
+   - parked: a task you dragged off the calendar
+   - event:  a fixed event you dragged off the calendar (it keeps its length and time of day) */
+function RescheduleTray({ items, nowAbs, todayN, windDown, dragId, dragOver, onTaskMove, onTaskDone, onTaskRemove, onPick, onEventPlace, onEventDelete, onDragStart, onSample }) {
   const [open, setOpen] = useState(true);
-  const laterToday = (t) => nowAbs - todayN * DAY_MIN + t.total <= windDown; // enough of today left
+  const over = !!dragOver;
+  if (!items.length) {
+    return (
+      <div className={"tray empty" + (over ? " drop-over" : "")} role="region" aria-label="Needs a time" data-drop-tray="1">
+        <b>Needs a time</b>
+        <span className="note" style={{ margin: 0 }}>{over ? "Drop it here to take it off the calendar for now."
+          : "Tasks you don't check off land here. You can also drag any task or event here to park it, then drag it back when you know when."}</span>
+        {!over && <button className="linkbtn" type="button" onClick={onSample}>Try it with a sample</button>}
+      </div>
+    );
+  }
+  const laterToday = (min) => nowAbs - todayN * DAY_MIN + min <= windDown; // enough of today left
   return (
-    <div className="tray" role="region" aria-label="Needs rescheduling">
+    <div className={"tray" + (over ? " drop-over" : "")} role="region" aria-label="Needs a time" data-drop-tray="1">
       <div className="tray-head">
-        <b>Needs rescheduling <span className="tray-count">{items.length}</span></b>
-        <span className="note" style={{ margin: 0 }}>These passed without being checked off. Drag one onto the calendar, or pick a quick option.</span>
+        <b>Needs a time <span className="tray-count">{items.length}</span></b>
+        <span className="note" style={{ margin: 0 }}>{over ? "Drop it here to park it." : "Grab one by its handle and drop it on a day or time, or use the buttons. Drag anything from the calendar here to park it."}</span>
         <button className="linkbtn" type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{open ? "Hide" : "Show"}</button>
       </div>
       {open && (
         <ul className="tray-list">
-          {items.map((t) => (
-            <li key={t.id} className="tray-item" draggable
-              onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", t.title); onDragStart(t.id); }}
-              onDragEnd={onDragEnd}>
-              <span className="grip" aria-hidden="true">⠿</span>
-              <div className="tray-main">
-                <b>{t.title}</b>
-                <span>was {fmtWhen(t.segments[0].start, todayN)} · {fmtDur(t.total)}
-                  {t.deadline != null && <span className={t.deadline < nowAbs ? "warn" : ""}> · due {fmtWhen(t.deadline, todayN)}</span>}</span>
-              </div>
-              <div className="tray-actions">
-                {laterToday(t) && <button className="btn ghost small" type="button" onClick={() => onMove(t.id, nowAbs, "later today")}>Later today</button>}
-                <button className="btn small tray-go" type="button" onClick={() => onMove(t.id, (todayN + 1) * DAY_MIN + DAY_START, "tomorrow")}>Tomorrow</button>
-                <button className="btn ghost small" type="button" title="I actually did it" onClick={() => onDone(t.id)}>✓ Did it</button>
-                <button className="x" type="button" aria-label={`Take ${t.title} off the calendar`} title="Take it off the calendar" onClick={() => onRemove(t.id)}>×</button>
-              </div>
-            </li>
-          ))}
+          {items.map((it) => {
+            const ev = it.kind === "event" ? it.ev : null, t = it.task;
+            const min = ev ? ev.end - ev.start : t.total;
+            return (
+              <li key={it.id} className={"tray-item" + (dragId === it.id ? " lifted" : "")} onPointerDown={(e) => onDragStart(it.src, e)}>
+                <span className="grip" title="Drag onto the calendar" aria-hidden="true">{GRIP}</span>
+                <div className="tray-main">
+                  <b>{ev ? ev.title : t.title}{t && t.sample && <span className="sample-tag">sample</span>}
+                    <span className={"kind-tag " + it.kind}>{it.kind === "missed" ? "missed" : it.kind === "parked" ? "parked" : "event"}</span></b>
+                  <span>
+                    {ev ? `was ${fmtDate(ev.date, { weekday: "short", month: "short", day: "numeric" })}, ${fmt(ev.start)} · ${fmtDur(min)}`
+                      : it.kind === "missed" ? `was ${fmtWhen(t.segments[0].start, todayN)} · ${fmtDur(min)}` : `${fmtDur(min)}`}
+                    {t && t.deadline != null && <span className={t.deadline < nowAbs ? "warn" : ""}> · due {fmtWhen(t.deadline, todayN)}</span>}
+                  </span>
+                </div>
+                <div className="tray-actions">
+                  {ev ? (
+                    <>
+                      <button className="btn ghost small" type="button" onClick={() => onEventPlace(ev.id, ev.date, ev.start)}>Put back</button>
+                      <button className="btn small tray-go" type="button" onClick={() => onEventPlace(ev.id, keyOf(Math.max(todayN + 1, dayNum(ev.date) + 1)), ev.start)}>Next day</button>
+                      <button className="x" type="button" aria-label={`Delete ${ev.title}`} title="Delete this event" onClick={() => onEventDelete(ev.id)}>×</button>
+                    </>
+                  ) : (
+                    <>
+                      {laterToday(min) && <button className="btn ghost small" type="button" onClick={() => onTaskMove(t.id, nowAbs)}>Later today</button>}
+                      <button className="btn small tray-go" type="button" onClick={() => onTaskMove(t.id, (todayN + 1) * DAY_MIN + DAY_START)}>Tomorrow</button>
+                      <button className="btn ghost small" type="button" title="Choose a day and time" onClick={() => onPick(t.id)}>Pick a time</button>
+                      <button className="btn ghost small" type="button" title="I actually did it" onClick={() => onTaskDone(t.id)}>✓ Did it</button>
+                      <button className="x" type="button" aria-label={`Take ${t.title} off the calendar`} title="Take it off the calendar" onClick={() => onTaskRemove(t.id)}>×</button>
+                    </>
+                  )}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
@@ -1269,7 +1324,7 @@ function TodoPanel({ todos, setTodos, tasks, nowAbs, todayN, onSchedule, onUnsch
             {!td.done && t && (t.fits
               ? <> · <button className="linkbtn inline" type="button" onClick={() => onJump(keyOf(dayOfAbs(t.segments[0].start)))}>on calendar {fmtWhen(t.segments[0].start, todayN)}</button>
                   {late && <span className="warn"> · finishes {fmtDur(end - td.due)} late</span>}</>
-              : <span className="warn"> · doesn't fit yet</span>)}
+              : t.parked ? <span> · parked in the tray</span> : <span className="warn"> · doesn't fit yet</span>)}
           </div>
         </div>
         {!td.done && td.due != null && parseQuickTodo(td.title, nowAbs).examLike
@@ -1662,12 +1717,10 @@ function DayStats({ events, tasks, date, now }) {
 
 function DayColumn({ date, isToday, isPast, now, pxPerMin, windDown, events, segs, deadlines, onDelete, onPickSlot, onEditEvent, onEditTask }) {
   const keyOpen = (fn) => (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fn(); } };
-  const { missed } = React.useContext(DropCtx);
-  // Dragging a task from the tray: drop it at the time under the pointer (15-min steps)
-  const drop = useDropTarget(date, (e) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    return clamp(DAY_START + Math.round((e.clientY - r.top) / pxPerMin / 15) * 15, DAY_START, DAY_END - 15);
-  });
+  const { missed, drag, startDrag } = React.useContext(DropCtx);
+  const lifted = (id) => drag && drag.src && drag.src.id === id;
+  // A task dragged from the tray over this column: where it would start (15-min steps)
+  const dropM = drag && drag.over && drag.over.date === date ? drag.over.m : null;
   const y = (m) => (clamp(m, DAY_START, DAY_END) - DAY_START) * pxPerMin;
   const laid = useMemo(() => layoutLanes(events), [events]);
   const conflicts = useMemo(() => {
@@ -1678,8 +1731,8 @@ function DayColumn({ date, isToday, isPast, now, pxPerMin, windDown, events, seg
   const hourPx = pxPerMin * 60;
 
   return (
-    <div className={"col" + (isToday ? " today" : "") + (drop.props.onDrop ? " droppable" : "")} style={{ backgroundSize: `100% ${hourPx}px, 100% ${hourPx / 2}px` }}
-      {...drop.props}
+    <div className={"col" + (isToday ? " today" : "") + (drag ? " droppable" : "")} style={{ backgroundSize: `100% ${hourPx}px, 100% ${hourPx / 2}px` }}
+      data-drop-date={date} data-px-per-min={pxPerMin}
       onClick={(e) => {
         if (e.target !== e.currentTarget) return; // only empty space, not events
         const m = DAY_START + Math.floor(e.nativeEvent.offsetY / pxPerMin / 30) * 30;
@@ -1696,9 +1749,10 @@ function DayColumn({ date, isToday, isPast, now, pxPerMin, windDown, events, seg
         const widthPct = 100 / ev.laneCount;
         const short = bottom - top < 40;
         return (
-          <div key={ev.id} className={"event" + (ev.cramExamId ? " exam" : "") + (conflicts.has(ev.id) ? " conflict" : "")}
-            title={`${ev.title} · ${fmt(ev.start)} – ${fmt(ev.end)} · click to edit`}
+          <div key={ev.id} className={"event" + (ev.cramExamId ? " exam" : "") + (conflicts.has(ev.id) ? " conflict" : "") + (lifted(ev.id) ? " lifted" : "")}
+            title={`${ev.title} · ${fmt(ev.start)} – ${fmt(ev.end)} · click to edit${ev.cramExamId ? "" : ", drag to move"}`}
             role="button" tabIndex={0} aria-label={`Edit ${ev.title}`}
+            onPointerDown={ev.cramExamId ? undefined : (e) => startDrag({ type: "event", id: ev.id, title: ev.title, minutes: ev.end - ev.start }, e)}
             onClick={() => onEditEvent(ev.id)} onKeyDown={keyOpen(() => onEditEvent(ev.id))}
             style={{
               top: top + 1, height: bottom - top - 2,
@@ -1738,9 +1792,10 @@ function DayColumn({ date, isToday, isPast, now, pxPerMin, windDown, events, seg
         if (h <= 0) return null;
         const clash = s.kind !== "break" && events.some((e) => overlaps({ start: s.ls, end: s.le }, e));
         return (
-          <div key={s.taskId + ":" + s.i} className={`tseg ${s.kind}` + (clash ? " conflict" : "") + (missed.has(s.taskId) ? " missed" : "")}
+          <div key={s.taskId + ":" + s.i} className={`tseg ${s.kind}` + (clash ? " conflict" : "") + (missed.has(s.taskId) ? " missed" : "") + (lifted(s.taskId) ? " lifted" : "")}
+            onPointerDown={s.study ? undefined : (e) => startDrag({ type: "task", id: s.taskId, title: s.title, minutes: s.total }, e)}
             style={{ top: top + 1, height: Math.max(h - 2, 3), ...studyStyle(s) }}
-            title={`${s.title} · ${KIND_LABEL[s.kind]} · ${fmt(s.ls)} – ${fmt(s.le)} · click to edit`}
+            title={`${s.title} · ${KIND_LABEL[s.kind]} · ${fmt(s.ls)} – ${fmt(s.le)} · click to edit${s.study ? "" : ", drag to move"}`}
             role="button" tabIndex={s.sessionStart ? 0 : -1} aria-label={`Edit ${s.title}`}
             onClick={() => onEditTask(s.taskId)} onKeyDown={keyOpen(() => onEditTask(s.taskId))}>
             {h >= 13 && (
@@ -1763,8 +1818,8 @@ function DayColumn({ date, isToday, isPast, now, pxPerMin, windDown, events, seg
         <div className="now-line" style={{ top: y(now.min) }}><span>now · {fmt(now.min)}</span></div>
       )}
 
-      {drop.over != null && (
-        <div className="drop-line" style={{ top: y(drop.over) }}><span>{isPast || (isToday && drop.over < now.min) ? "next free time after now" : `start ${fmt(drop.over)}`}</span></div>
+      {dropM != null && (
+        <div className="drop-line" style={{ top: y(dropM) }}><span>{drag.src.type === "task" && (isPast || (isToday && dropM < now.min)) ? "next free time after now" : `start ${fmt(dropM)}`}</span></div>
       )}
     </div>
   );
@@ -1973,7 +2028,11 @@ function App() {
     setCram({ ...nextCram, active: true, hwCapByDay: P.alloc.hwCapByDay, appliedSig: P.sig });
     const moved = [...new Set([...Object.keys(before), ...Object.keys(after)].map(Number))].sort((a, b) => a - b)
       .map((d) => ({ d, delta: (after[d] || 0) - (before[d] || 0) })).filter((x) => Math.abs(x.delta) >= 15);
-    const missing = P.alloc.lost - P.alloc.recovered;
+    // Study that can't be placed: time fixed events took that couldn't be made up, plus sessions with no free slot.
+    // Only report the change this action caused; what already didn't fit is shown in Cram mode.
+    const shortfall = (plan) => plan.alloc.lost - plan.alloc.recovered + plan.placedStudy.filter((t) => !t.fits).reduce((x, t) => x + t.total, 0);
+    const was = cram.active ? shortfall(cramPlan({ cram, events, tasks, settings, nowAbs })) : 0;
+    const missing = shortfall(P) - was; // > 0: this change pushed study out; < 0: it freed room
     setCramMsg({ at: Date.now(), what, missing, link: !cram.active,
       note: !cram.active ? `Cram mode is on: ${fmtDur(Object.values(after).reduce((a, b) => a + b, 0))} of study planned across ${Object.keys(after).length} days.` : "",
       moved: moved.map(({ d, delta }) => `${d === todayN ? "today" : fmtDate(keyOf(d), { weekday: "short" })} ${delta > 0 ? "+" : "−"}${fmtDur(Math.abs(delta))}`) });
@@ -2142,7 +2201,7 @@ function App() {
     if (replan) {
       const r = estimate({ guess: f.guess, energy: old.energy || 3, distraction: old.distraction || 3, dread: f.dread });
       const [setup, deep, buffer] = r.phases.map((p) => p.minutes);
-      const spec = { ...old, title: f.title, guess: f.guess, dread: f.dread, deadline: f.deadline ?? null, earliest: f.earliest ?? null,
+      const spec = { ...old, parked: false, title: f.title, guess: f.guess, dread: f.dread, deadline: f.deadline ?? null, earliest: f.earliest ?? null,
         total: r.total, setup, deep, buffer };
       const rest = tasks.filter((t) => t.id !== id);
       const hwSegs = rest.filter((t) => !t.study).flatMap((t) => t.segments || []);
@@ -2172,13 +2231,49 @@ function App() {
   /* ----- Needs rescheduling ----- */
   const missed = useMemo(() => missedTasks(tasks, todos, nowAbs), [tasks, todos, nowAbs]);
   const missedIds = useMemo(() => new Set(missed.map((t) => t.id)), [missed]);
-  const [dragging, setDragging] = useState(null); // id of the task being dragged out of the tray
+  const [drag, setDrag] = useState(null); // { src, x, y, over } while something is being dragged
+  const [parkedEvents, setParkedEvents] = useStoredState("realitycheck.parked.v1", []); // events dragged off the calendar
+  const trayItems = [
+    ...missed.map((t) => ({ kind: "missed", id: t.id, task: t, src: { type: "task", id: t.id, title: t.title, minutes: t.total, fromTray: true } })),
+    ...tasks.filter((t) => t.parked && !t.completed).map((t) => ({ kind: "parked", id: t.id, task: t, src: { type: "task", id: t.id, title: t.title, minutes: t.total, fromTray: true } })),
+    ...parkedEvents.map((ev) => ({ kind: "event", id: ev.id, ev, src: { type: "parked", id: ev.id, title: ev.title, minutes: ev.end - ev.start, fromTray: true } })),
+  ];
+  const whenLabel = (date, m) => `${fmtDate(date, { weekday: "short", month: "short", day: "numeric" })}, ${fmt(m)}`;
+  // Park: take it off the calendar into the tray. Exams and study sessions belong to Cram mode, so they stay.
+  const park = (src) => {
+    if (src.type === "task") {
+      setTasks((ts) => ts.map((t) => (t.id === src.id ? { ...t, parked: true, fits: false, segments: [], earliest: null } : t)));
+      note(`Parked ${src.title}`, "It's off the calendar. Drag it back when you know when.");
+    } else if (src.type === "event") {
+      const ev = events.find((e) => e.id === src.id);
+      if (!ev) return;
+      setParkedEvents((ps) => [...ps, ev]);
+      changeEvents(events.filter((e) => e.id !== ev.id), `Parked ${ev.title}`);
+      if (!cram.active) note(`Parked ${ev.title}`, "It's off the calendar. Drag it back, or press Put back.");
+    }
+  };
+  // Move a fixed event (or put a parked one back). Dropped on a day without a time: same time of day.
+  const moveEvent = (ev, date, m, fromParked) => {
+    const start = m ?? ev.start, moved = { ...ev, date, start, end: Math.min(start + (ev.end - ev.start), DAY_MIN) };
+    const next = fromParked ? [...events, moved] : events.map((e) => (e.id === ev.id ? moved : e));
+    if (fromParked) setParkedEvents((ps) => ps.filter((p) => p.id !== ev.id));
+    changeEvents(next, `Moved ${ev.title} to ${whenLabel(date, start)}`);
+    if (!cram.active) note(`Moved ${ev.title} to ${whenLabel(date, start)}`, "Hit Optimize if planned tasks should move around it.");
+    setAnchor(date);
+  };
+  const placeParkedEvent = (id, date, m) => { const ev = parkedEvents.find((p) => p.id === id); if (ev) moveEvent(ev, date, m, true); };
+  const dropSrc = (src, over) => {
+    if (over.tray) { if (!src.fromTray) park(src); return; }
+    if (src.type === "task") rescheduleTask(src.id, dayNum(over.date) * DAY_MIN + (over.m ?? DAY_START));
+    else if (src.type === "event") { const ev = events.find((e) => e.id === src.id); if (ev) moveEvent(ev, over.date, over.m, false); }
+    else if (src.type === "parked") placeParkedEvent(src.id, over.date, over.m);
+  };
   // Put a missed task back on the calendar at `at` (or the next free spot after it), without moving anything else.
   const rescheduleTask = (id, at) => {
     const old = tasks.find((t) => t.id === id);
     if (!old) return;
     const start = Math.max(at, Math.ceil(nowAbs / 5) * 5);
-    const spec = { ...old, earliest: start, completed: false };
+    const spec = { ...old, earliest: start, completed: false, parked: false };
     const rest = tasks.filter((t) => t.id !== id);
     const hwSegs = rest.filter((t) => !t.study).flatMap((t) => t.segments || []);
     const from = dayOfAbs(planFromAbs);
@@ -2192,22 +2287,85 @@ function App() {
       setAnchor(keyOf(dayOfAbs(s0)));
     } else note(`Couldn't fit ${old.title}`, "No free time there. Try another day, or raise the daily max.");
   };
+  // A pretend task from yesterday that "slipped", so you can see the tray and practise dragging. Remove or reschedule it like any other.
+  const addSampleMissed = () => {
+    const start = (todayN - 1) * DAY_MIN + 15 * 60;
+    const segs = [{ kind: "setup", start, end: start + 10 }, { kind: "deep", start: start + 10, end: start + 60 }, { kind: "buffer", start: start + 60, end: start + 70 }];
+    setTasks((ts) => [...ts, { id: newId(), title: "Drag me to a new time", sample: true, fits: true, split: false, segments: segs,
+      guess: 50, energy: 3, distraction: 3, dread: 2, deadline: null, total: 70, setup: 10, deep: 50, buffer: 10 }]);
+  };
   const completeTask = (id) => {
     const t = tasks.find((x) => x.id === id);
     setTasks((ts) => ts.map((x) => (x.id === id ? { ...x, completed: true } : x)));
     if (t && t.todoId) setTodos((ts) => ts.map((td) => (td.id === t.todoId ? { ...td, done: true } : td)));
   };
-  const dropValue = useMemo(() => ({
-    dragging, missed: missedIds,
-    dropAt: (date, m) => { if (dragging) rescheduleTask(dragging, dayNum(date) * DAY_MIN + (m ?? DAY_START)); setDragging(null); },
-  }), [dragging, missedIds, tasks, events, settings, nowAbs, cram]);
+  /* Drag anything: tray cards (mouse, trackpad, or a finger on the handle) and calendar blocks (mouse/trackpad;
+     on touch the grid scrolls instead). It follows the pointer; near the top or bottom edge the page (or the calendar)
+     scrolls; Esc cancels. A press without moving is still a click, so blocks still open their editor. */
+  const startDrag = (src, e) => {
+    if (e.target.closest("button") || (e.pointerType === "mouse" && e.button !== 0)) return;
+    if (e.pointerType === "touch" && !(src.fromTray && e.target.closest(".grip"))) return;
+    const x0 = e.clientX, y0 = e.clientY;
+    let active = false, over = null, px = x0, py = y0, raf = 0;
+    const scrollTick = () => {
+      const edge = 70, v = py < edge ? -(edge - py) / 4 : py > window.innerHeight - edge ? (py - window.innerHeight + edge) / 4 : 0;
+      const sc = document.querySelector(".tl-scroll");
+      const r = sc && sc.getBoundingClientRect();
+      if (r && px > r.left && px < r.right && py > r.top && py < r.bottom) {
+        if (py < r.top + 50) sc.scrollTop -= 10; else if (py > r.bottom - 50) sc.scrollTop += 10;
+      }
+      if (v) window.scrollBy(0, v);
+      if (active) { over = dropTargetAt(px, py); if (over && over.tray && src.fromTray) over = null; setDrag((d) => d && { ...d, over }); }
+      raf = requestAnimationFrame(scrollTick);
+    };
+    const move = (ev) => {
+      px = ev.clientX; py = ev.clientY;
+      if (!active) {
+        if (Math.hypot(px - x0, py - y0) < 5) return;
+        active = true;
+        document.body.classList.add("dragging-task");
+        raf = requestAnimationFrame(scrollTick);
+      }
+      ev.preventDefault();
+      over = dropTargetAt(px, py);
+      if (over && over.tray && src.fromTray) over = null; // it's already in the tray
+      setDrag({ src, x: px, y: py, over });
+    };
+    const finish = (drop) => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      window.removeEventListener("keydown", esc);
+      cancelAnimationFrame(raf);
+      document.body.classList.remove("dragging-task");
+      setDrag(null);
+      if (active) { // the click that follows a drag shouldn't open an editor or start a new event
+        const swallow = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
+        window.addEventListener("click", swallow, { capture: true, once: true });
+        setTimeout(() => window.removeEventListener("click", swallow, { capture: true }), 300);
+      }
+      if (drop && active && over) dropSrc(src, over);
+    };
+    const up = () => finish(true);
+    const cancel = () => finish(false);
+    const esc = (ev) => { if (ev.key === "Escape") finish(false); };
+    window.addEventListener("pointermove", move, { passive: false });
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
+    window.addEventListener("keydown", esc);
+  };
+
+  const dropValue = { drag, missed: missedIds, startDrag };
 
   /* ----- "Right now" tunnel vision: only the current block, a live countdown, and what's next ----- */
   const focus = !!settings.focusMode;
   const setFocus = (on) => { updateSettings({ focusMode: on }); window.scrollTo(0, 0); };
   useEffect(() => {
     document.body.classList.toggle("tunnel", focus); // hides the feature rail too
-    const onOpen = (e) => { if (e.detail === "focus") setFocus(true); };
+    const onOpen = (e) => {
+      if (e.detail === "focus") setFocus(true);
+      if (e.detail === "home") { updateSettings({ focusMode: false }); setEditing(null); setAnchor(now.today); }
+    };
     window.addEventListener("rc:open", onOpen);
     return () => window.removeEventListener("rc:open", onOpen);
   }, [focus]);
@@ -2331,7 +2489,8 @@ function App() {
             <div className="legend">
               <span><i style={{ background: COLORS[0].edge }} />fixed event</span>
               <span><i style={{ background: "repeating-linear-gradient(135deg, #4a72c4 0 2px, #e6eefb 2px 4px)" }} />planned task</span>
-              <span><i style={{ background: "var(--accent)" }} />now / drop-dead</span>
+              <span><i style={{ background: "var(--accent)" }} />now</span>
+              <span><i style={{ background: "var(--warn)" }} />drop-dead</span>
             </div>
             {view !== "month" && (
               <div className="zoom" title="Tip: hold Ctrl/⌘ and scroll, or pinch on a trackpad">
@@ -2349,10 +2508,12 @@ function App() {
               </button>
             </div>
           </div>
-          {missed.length > 0 && (
-            <RescheduleTray items={missed} nowAbs={nowAbs} todayN={todayN} windDown={windDown}
-              onMove={rescheduleTask} onDone={completeTask} onRemove={(id) => setTasks((ts) => ts.filter((t) => t.id !== id))}
-              onDragStart={setDragging} onDragEnd={() => setDragging(null)} />
+          {(
+            <RescheduleTray items={trayItems} onSample={addSampleMissed} nowAbs={nowAbs} todayN={todayN} windDown={windDown}
+              dragId={drag && drag.src.id} dragOver={drag && drag.over && drag.over.tray}
+              onTaskMove={rescheduleTask} onTaskDone={completeTask} onPick={editTask} onTaskRemove={(id) => setTasks((ts) => ts.filter((t) => t.id !== id))}
+              onEventPlace={placeParkedEvent} onEventDelete={(id) => setParkedEvents((ps) => ps.filter((p) => p.id !== id))}
+              onDragStart={startDrag} />
           )}
           {view === "month" ? (
             <MonthGrid anchor={anchor} events={events} tasks={tasks} today={now.today} onOpenDay={openDay} onEditEvent={editEvent} onEditTask={editTask} />
@@ -2379,6 +2540,20 @@ function App() {
         </div>
       </div>
       )}
+      {drag && (
+        <div className="drag-ghost" aria-hidden="true" style={{
+          // sit beside the pointer, flipping to the other side near the right or bottom edge of the screen
+          left: drag.x + 14, top: drag.y + 14,
+          transform: `translate(${drag.x > window.innerWidth - 300 ? "calc(-100% - 28px)" : "0"}, ${drag.y > window.innerHeight - 90 ? "calc(-100% - 28px)" : "0"}) rotate(-1.5deg)`,
+        }}>
+          <b>{drag.src.title}</b>
+          <span>{!drag.over ? (drag.src.fromTray ? "Drop it on a day or a time" : "Drop on a time, or in the tray to park it")
+            : drag.over.tray ? "Park it in the tray"
+            : drag.src.type === "task" && dayNum(drag.over.date) * DAY_MIN + (drag.over.m ?? DAY_END) <= nowAbs ? "Drop: next free time after now"
+            : `${drag.src.fromTray ? "Drop" : "Move"}: ${fmtDate(drag.over.date, { weekday: "short", month: "short", day: "numeric" })}${drag.over.m != null ? `, ${fmt(drag.over.m)}`
+              : drag.src.type === "task" ? ", first free time" : ", same time"}`}</span>
+        </div>
+      )}
       {editing && (() => {
         if (editing.kind === "event") {
           const ev = events.find((e) => e.id === editing.id);
@@ -2400,10 +2575,11 @@ function App() {
         <div className="toast" role="status">
           <div>
             <b>{cramMsg.what}.</b>{" "}
-            {cramMsg.note || (cramMsg.moved.length ? `Cram plan updated: ${cramMsg.moved.join(", ")}.` : "Cram plan checked: study time didn't need to move.")}
+            {cramMsg.note || (cramMsg.moved.length ? `Study time moved: ${cramMsg.moved.join(", ")}.` : "Your study plan didn't change.")}
             {cramMsg.link && <> <a href="cram.html">Open Cram mode →</a></>}
             {cramMsg.action && <> <button className="toast-btn" type="button" onClick={() => { cramMsg.action.run(cram, events); }}>{cramMsg.action.label}</button></>}
-            {cramMsg.missing > 0 && <span className="warn"> {fmtDur(cramMsg.missing)} of study no longer fits. <a href="cram.html">Fix it in Cram mode →</a></span>}
+            {cramMsg.missing >= 15 && <span className="warn"> Because of this, {fmtDur(cramMsg.missing)} of study no longer fits. <a href="cram.html">See Cram mode →</a></span>}
+            {cramMsg.missing <= -15 && <span> That freed up room for {fmtDur(-cramMsg.missing)} more study.</span>}
           </div>
           <button className="x" aria-label="Dismiss" onClick={() => setCramMsg(null)}>×</button>
         </div>
