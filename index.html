@@ -275,6 +275,8 @@
 <script src="engine.js"></script>
 <!-- Optional Claude features for the to-do list (loads the SDK only when used) -->
 <script src="ai.js"></script>
+<!-- Feature rail: jump to / highlight any feature -->
+<script src="rail.js"></script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useLayoutEffect, useMemo, useRef } = React;
@@ -412,7 +414,7 @@ function AddEventForm({ onAdd, draft, defaultDate }) {
   };
 
   return (
-    <form className="card" onSubmit={submit}>
+    <form className="card" id="f-event" onSubmit={submit}>
       <h2>Fixed events</h2>
       <p className="sub">Things already on your calendar: classes, meals, shifts. Any day, as far ahead as you like. Tip: click an empty spot on the calendar.</p>
       <div className="stack" style={{ gap: 12 }}>
@@ -516,7 +518,7 @@ function TaskEstimator({ onAdd, todayN, lookahead }) {
   };
 
   return (
-    <div className="card">
+    <div className="card" id="f-check">
       <h2>Reality check a task</h2>
       <p className="sub">Your guess, then the honest version.</p>
       <div className="stack" style={{ gap: 14 }}>
@@ -548,7 +550,7 @@ function TaskList({ tasks: allTasks, cram, absEvents, nowAbs, todayN, settings, 
   const unfit = tasks.filter((t) => !t.fits);
   const clashing = tasks.filter((t) => t.fits && clashWith(t, absEvents));
   return (
-    <div className="card">
+    <div className="card" id="f-tasks">
       <h2>Flexible tasks</h2>
       <p className="sub">Reality-checked tasks the planner can move around your fixed events, across days.</p>
       <div className="stack" style={{ gap: 12 }}>
@@ -724,7 +726,7 @@ function Pomodoro({ tasks, nowAbs }) {
 
   const R = 54, C = 2 * Math.PI * R, frac = 1 - left / len;
   return (
-    <div className={"card pomo " + p.mode}>
+    <div className={"card pomo " + p.mode} id="f-pomo">
       <h2>Pomodoro <span className="tag">{POMO_LABEL[p.mode]}</span></h2>
       <div className="seg-ctrl pomo-modes" role="group" aria-label="Timer mode">
         {Object.keys(POMO_LABEL).map((m) => (
@@ -840,6 +842,12 @@ function TodoPanel({ todos, setTodos, tasks, nowAbs, todayN, onSchedule, onUnsch
   const [error, setError] = useState("");
   const [showDone, setShowDone] = useState(false);
 
+  // The feature rail can ask for the brain dump panel to open.
+  useEffect(() => {
+    const onOpen = (e) => { if (e.detail === "dump") setDumpOpen(true); };
+    window.addEventListener("rc:open", onOpen);
+    return () => window.removeEventListener("rc:open", onOpen);
+  }, []);
   const parsed = text.trim() ? parseQuickTodo(text, nowAbs) : null;
   const addTodo = (td) => ({ id: newId(), done: false, taskId: null, dread: 3, cls: "", minutes: null, due: null, note: "", ...td });
   const quickAdd = (e) => {
@@ -937,7 +945,7 @@ function TodoPanel({ todos, setTodos, tasks, nowAbs, todayN, onSchedule, onUnsch
   };
 
   return (
-    <div className="card todo-card">
+    <div className="card todo-card" id="f-todo">
       <div className="todo-head">
         <div>
           <h2>To-do</h2>
@@ -948,7 +956,7 @@ function TodoPanel({ todos, setTodos, tasks, nowAbs, todayN, onSchedule, onUnsch
         <div className="todo-tools">
           <button className="btn ghost small" type="button" disabled={!unplanned.length} onClick={planAll}>Plan all{unplanned.length ? ` (${unplanned.length})` : ""}</button>
           <button className="btn ghost small" type="button" aria-expanded={dumpOpen} onClick={() => setDumpOpen((o) => !o)}>✦ Brain dump</button>
-          <button className="btn small ai-btn" type="button" disabled={busy === "suggest"} onClick={runSuggest}>{busy === "suggest" ? "Thinking…" : "✦ What should I do?"}</button>
+          <button id="f-ask" className="btn small ai-btn" type="button" disabled={busy === "suggest"} onClick={runSuggest}>{busy === "suggest" ? "Thinking…" : "✦ What should I do?"}</button>
           <button className="linkbtn" type="button" onClick={() => setShowKey((v) => !v)}>{ai.apiKey ? "AI: on" : "AI: off"}</button>
         </div>
       </div>
@@ -970,7 +978,7 @@ function TodoPanel({ todos, setTodos, tasks, nowAbs, todayN, onSchedule, onUnsch
       )}
 
       {dumpOpen && (
-        <div className="ai-panel">
+        <div className="ai-panel" id="f-dump">
           <b>Brain dump</b>
           <p className="note" style={{ margin: 0 }}>Paste anything: a syllabus schedule, notes to yourself, "ugh i have a lab report thursday and a chem quiz monday and practice every day 4-6". Claude sorts it into to-dos, exams and events.</p>
           <textarea rows={4} value={dump} onChange={(e) => setDump(e.target.value)} aria-label="Brain dump" placeholder="Everything on your mind…" />
@@ -1074,7 +1082,7 @@ function DayStats({ events, tasks, date, now }) {
   const booked = bookedMinutes([...dayEvents, ...taskBlocks], from);
   const free = Math.max(DAY_END - from - booked, 0);
   return (
-    <div className="card">
+    <div className="card" id="f-today">
       <p className="stats-day">{isToday ? "Today" : fmtDate(date, { weekday: "long", month: "short", day: "numeric" })}</p>
       <div className="stats">
         <div className="stat"><b>{dayEvents.length}</b><span>events</span></div>
@@ -1505,7 +1513,7 @@ function App() {
         </aside>
 
         <div className="stack" style={{ minWidth: 0 }}>
-        <section className="card tl-card">
+        <section className="card tl-card" id="f-calendar">
           <div className="tl-head">
             <div className="cal-nav">
               <button className="btn ghost small" onClick={() => setAnchor(now.today)}>Today</button>

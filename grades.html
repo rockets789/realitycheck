@@ -119,6 +119,7 @@
 
 <!-- Shared engine: gradeSummary() lives next to the scheduler and Cram mode -->
 <script src="engine.js"></script>
+<script src="rail.js"></script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useEffect } = React;
@@ -290,7 +291,7 @@ function App() {
 
       <div className="layout">
         <aside className="stack">
-          <div className="card">
+          <div className="card" id="f-grades">
             <h2>Your classes</h2>
             <p className="sub">Add your graded work from the syllabus. Leave a score blank for anything not graded yet.</p>
             <div className="tabs">

@@ -108,6 +108,7 @@
 
 <!-- Shared estimation + scheduling + cram engine (same file the calendar uses) -->
 <script src="engine.js"></script>
+<script src="rail.js"></script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useEffect } = React;
@@ -372,7 +373,7 @@ function App() {
 
       <div className="layout">
         <aside className="stack">
-          <div className="card">
+          <div className="card" id="f-cram">
             <h2>Your exams</h2>
             <p className="sub">The more cooked you are, the bigger the share of each day's study time and the earlier you start. Two equally cooked exams split time evenly; the next exam up gets a boost.</p>
             <div className="stack" style={{ gap: 12 }}>
