@@ -190,209 +190,22 @@
   .chip.task { border: 1px dashed #4a72c4; background: #f4f7fd; }
   .chip .mono { font-size: 10.5px; opacity: .7; margin-right: 4px; }
   .more { font-size: 11px; color: var(--muted); padding-left: 4px; }
+  .cram-link { text-decoration: none; background: var(--accent); border-color: var(--accent); font-size: 14px; padding: 7px 12px; }
+  .cram-note { background: #fff4e0; border-radius: 10px; padding: 9px 11px; font-size: 13px; margin: 0; }
+  .cram-note a { color: var(--ink); font-weight: 600; }
 </style>
 </head>
 <body>
 <div id="root"></div>
 
-<!-- ENGINE:START: pure estimation + scheduling engine (plain JS so it can be tested outside the browser) -->
-<script>
-/**
- * estimate({ guess, energy, distraction, dread }) -> { total, phases }
- *   guess:       optimistic estimate in minutes (> 0)
- *   energy:      1 (running on fumes) .. 5 (fully charged)
- *   distraction: 1 (phone in another room) .. 5 (group chat is popping)
- *   dread:       1 (kind of fun) .. 5 (I'd rather do laundry)
- * Phases are rounded to whole minutes; total is the sum of the rounded phases,
- * so the bars always add up to the headline number.
- */
-function estimate({ guess, energy, distraction, dread }) {
-  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, Number(v)));
-  const g = Number(guess);
-  if (!Number.isFinite(g) || g <= 0) throw new Error("guess must be a positive number of minutes");
-  const e = clamp(energy, 1, 5), d = clamp(distraction, 1, 5), r = clamp(dread, 1, 5);
-
-  const setup = 5 + r * 3;                        // setup friction
-  const fatigue = 1 + (5 - e) * 0.10;             // fatigue multiplier
-  const deep = g * fatigue;                       // deep work
-  const distractionTax = deep * (d - 1) * 0.08;   // distraction tax
-  const buffer = Math.max(5, 0.10 * (setup + deep + distractionTax));
-
-  const phases = [
-    { key: "setup", label: "Setup", minutes: Math.round(setup),
-      why: `5m to get going + ${r * 3}m of stalling because dread is ${r}/5.` },
-    { key: "deep", label: "Deep Work", minutes: Math.round(deep + distractionTax),
-      why: `Your ${g}m × ${fatigue.toFixed(1)} for energy ${e}/5 = ${Math.round(deep)}m, plus ${Math.round(distractionTax)}m lost to distraction (${d}/5).`,
-      parts: { guess: g, fatigue: Math.round(deep) - g, distraction: Math.round(deep + distractionTax) - Math.round(deep) } },
-    { key: "buffer", label: "Buffer", minutes: Math.round(buffer),
-      why: "10% slack for wrap-up and surprises (never less than 5m)." },
-  ];
-  const total = phases.reduce((s, p) => s + p.minutes, 0);
-  return { total, phases };
-}
-
-/* ---------- Scheduler for flexible (non-fixed) tasks ----------
- * Times here are ABSOLUTE minutes: dayNumber * 1440 + minute-of-day, so one task can span days.
- * A task is { setup, deep, buffer } minutes (from estimate()). Rules that keep a schedule reasonable:
- *  - 10 min of breathing room around every fixed event and every placed task
- *  - deep work runs in sessions of at most 50 min, with a 10 min break between sessions
- *  - tasks only go inside planning windows (each day: day start -> wind-down, nothing in the past)
- *  - at most `dailyCap` minutes of task work per day, so the week stays livable
- *  - prefer one contiguous block; if none fits, split across gaps (no deep piece under 25 min)
- */
-const DAY_MIN = 1440;
-const SCHED = { breather: 10, maxChunk: 50, breakLen: 10, minChunk: 25, dailyCap: Infinity };
-
-function mergeIntervals(list) {
-  const sorted = list.filter(([a, b]) => b > a).map(([a, b]) => [a, b]).sort((x, y) => x[0] - y[0]);
-  const out = [];
-  for (const [a, b] of sorted) {
-    const last = out[out.length - 1];
-    if (last && a <= last[1]) last[1] = Math.max(last[1], b); else out.push([a, b]);
-  }
-  return out;
-}
-
-/* Free [start, end] gaps inside [from, to], treating each busy interval as padded by `pad` minutes */
-function freeGaps(busy, from, to, pad) {
-  const merged = mergeIntervals(busy.map(([a, b]) => [a - (pad || 0), b + (pad || 0)]));
-  const gaps = [];
-  let c = from;
-  for (const [a, b] of merged) {
-    if (b <= c) continue;
-    if (a >= to) break;
-    if (a > c) gaps.push([c, Math.min(a, to)]);
-    c = Math.max(c, b);
-  }
-  if (c < to) gaps.push([c, to]);
-  return gaps;
-}
-
-/* One window per day for `days` days starting at fromAbs: [max(dayStart, from), windDown] */
-function planningWindows(fromAbs, days, dayStart, windDown) {
-  const first = Math.floor(fromAbs / DAY_MIN), out = [];
-  for (let d = first; d < first + days; d++) {
-    const a = Math.max(d * DAY_MIN + dayStart, fromAbs), b = d * DAY_MIN + windDown;
-    if (b > a) out.push([a, b]);
-  }
-  return out;
-}
-
-/* Remaining task-work minutes per day after the given segments are counted (breaks are free time) */
-function capLeftFrom(segments, dailyCap, start) {
-  const left = Object.assign({}, start);
-  segments.forEach((s) => {
-    if (s.kind === "break") return;
-    const d = Math.floor(s.start / DAY_MIN);
-    left[d] = (d in left ? left[d] : dailyCap) - (s.end - s.start);
-  });
-  return left;
-}
-
-const splitEven = (total, n) => Array.from({ length: n }, (_, i) => Math.floor(total / n) + (i < total % n ? 1 : 0));
-
-/* Place one task into the free time left by `busy` ([[start, end], ...]) within `windows`.
- * Returns { fits, split, segments: [{ kind, start, end }] }. */
-function placeTask(t, busy, windows, opt) {
-  opt = Object.assign({}, SCHED, opt);
-  const capLeft = Object.assign({}, opt.capLeft);
-  const capOf = (m) => { const d = Math.floor(m / DAY_MIN); return d in capLeft ? capLeft[d] : opt.dailyCap; };
-  const use = (m, len) => { capLeft[Math.floor(m / DAY_MIN)] = capOf(m) - len; };
-  const gaps = windows.flatMap(([a, b]) => freeGaps(busy, a, b, opt.breather));
-  const n = Math.max(1, Math.ceil(t.deep / opt.maxChunk));
-  const work = t.setup + t.deep + t.buffer;
-  const runLen = work + (n - 1) * opt.breakLen;
-
-  // 1) First gap that holds the whole padded task in one go (and the day has room under the cap).
-  const whole = gaps.find(([s, e]) => e - s >= runLen && capOf(s) >= work);
-  if (whole) {
-    const segments = []; let c = whole[0];
-    const push = (kind, len) => { segments.push({ kind, start: c, end: c + len }); c += len; };
-    push("setup", t.setup);
-    splitEven(t.deep, n).forEach((len, i) => { if (i) push("break", opt.breakLen); push("deep", len); });
-    push("buffer", t.buffer);
-    return { fits: true, split: false, segments };
-  }
-
-  // 2) Otherwise split deep work across gaps (and days), earliest first.
-  const segments = [];
-  let setupDone = false, deepLeft = t.deep;
-  for (const [gs, ge] of gaps) {
-    let c = gs, lastWasDeep = false;
-    const push = (kind, len) => { segments.push({ kind, start: c, end: c + len }); c += len; };
-    if (!setupDone) {
-      const need = t.setup + Math.min(opt.minChunk, deepLeft);
-      if (ge - c < need || capOf(c) < need) continue; // setup only makes sense right before work
-      push("setup", t.setup); use(gs, t.setup); setupDone = true;
-    }
-    while (deepLeft > 0) {
-      const brk = lastWasDeep ? opt.breakLen : 0;
-      const chunk = Math.min(opt.maxChunk, deepLeft, ge - c - brk, capOf(gs));
-      if (chunk < Math.min(opt.minChunk, deepLeft)) break;
-      if (brk) push("break", brk);
-      push("deep", chunk); use(gs, chunk); deepLeft -= chunk; lastWasDeep = true;
-    }
-    if (deepLeft === 0 && ge - c >= t.buffer && capOf(gs) >= t.buffer) {
-      push("buffer", t.buffer);
-      return { fits: true, split: true, segments };
-    }
-  }
-  return { fits: false, split: false, segments: [] };
-}
-
-/* Re-plan flexible tasks around `busy`: earliest deadline first, then highest dread
- * (do the thing you're avoiding while you still have energy), then longest. */
-function planTasks(tasks, busy, windows, opt) {
-  opt = Object.assign({}, SCHED, opt);
-  const order = [...tasks].sort((a, b) =>
-    (a.deadline ?? Infinity) - (b.deadline ?? Infinity) || b.dread - a.dread || b.total - a.total);
-  busy = busy.slice();
-  let capLeft = Object.assign({}, opt.capLeft);
-  const plan = {};
-  for (const t of order) {
-    const p = placeTask(t, busy, windows, Object.assign({}, opt, { capLeft }));
-    plan[t.id] = p;
-    p.segments.forEach((s) => busy.push([s.start, s.end]));
-    capLeft = capLeftFrom(p.segments, opt.dailyCap, capLeft);
-  }
-  return plan;
-}
-
-/* Drop-dead start = deadline - total. `late` = minutes the planned finish runs past the deadline. */
-function deadlineStatus(t, nowAbs) {
-  if (t.deadline == null) return null;
-  const dropDead = t.deadline - t.total;
-  const last = t.fits && t.segments.length ? t.segments[t.segments.length - 1].end : null;
-  return { dropDead, passed: nowAbs > dropDead, late: last != null && last > t.deadline ? last - t.deadline : 0 };
-}
-
-const countSessions = (segs) => segs.reduce((n, s, i) => n + (i === 0 || segs[i - 1].end !== s.start ? 1 : 0), 0);
-
-if (typeof module !== "undefined") module.exports = {
-  estimate, freeGaps, planningWindows, capLeftFrom, placeTask, planTasks, deadlineStatus, countSessions,
-};
-</script>
-<!-- ENGINE:END -->
+<!-- Shared estimation + scheduling + cram engine (also used by cram.html) -->
+<script src="engine.js"></script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useLayoutEffect, useMemo, useRef } = React;
 
-/* ---------- Config ---------- */
-const DAY_START = 9 * 60;    // 9:00 AM, in minutes from midnight
-const DAY_END = 23 * 60;     // 11:00 PM
+/* ---------- Config (DAY_START, DAY_END, COLORS, storage keys + date/time helpers live in engine.js) ---------- */
 const ZOOM_MIN = 32, ZOOM_MAX = 200, ZOOM_DEFAULT = 64;  // pixels per hour
-const STORAGE_KEY = "realitycheck.events.v1";
-const TASKS_KEY = "realitycheck.tasks.v1";
-const SETTINGS_KEY = "realitycheck.settings.v1";
-
-const COLORS = [
-  { bg: "#e6eefb", edge: "#4a72c4" }, // blue
-  { bg: "#f3e8fb", edge: "#8a5cc4" }, // purple
-  { bg: "#fdf0d6", edge: "#c9932b" }, // amber
-  { bg: "#e3eee5", edge: "#5d8a6a" }, // sage
-  { bg: "#fbe3d9", edge: "#e0603a" }, // coral
-];
-
 const SAMPLE_DAY = [
   { title: "CS 251 Lecture", start: 10 * 60 + 30, end: 11 * 60 + 45, color: 0 },
   { title: "Lunch with Priya", start: 12 * 60 + 30, end: 13 * 60 + 30, color: 3 },
@@ -400,44 +213,13 @@ const SAMPLE_DAY = [
   { title: "Gym", start: 18 * 60, end: 19 * 60, color: 2 },
 ];
 
-/* ---------- Dates: "YYYY-MM-DD" keys; dayNum = days since 1970-01-01 (DST-proof) ---------- */
-const pad2 = (n) => String(n).padStart(2, "0");
-const dateKey = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-const dayNum = (k) => { const [y, m, d] = k.split("-").map(Number); return Math.round(Date.UTC(y, m - 1, d) / 86400000); };
-const keyOf = (n) => { const d = new Date(n * 86400000); return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`; };
-const addDays = (k, n) => keyOf(dayNum(k) + n);
-const weekday = (k) => (((dayNum(k) + 4) % 7) + 7) % 7;      // 0 = Sunday
-const weekStart = (k) => addDays(k, -weekday(k));
-const monthStart = (k) => k.slice(0, 8) + "01";
-const addMonths = (k, n) => { const [y, m] = k.split("-").map(Number); const t = y * 12 + (m - 1) + n; return `${Math.floor(t / 12)}-${pad2((t % 12) + 1)}-01`; };
-const fmtDate = (k, opts) => new Date(dayNum(k) * 86400000).toLocaleDateString(undefined, { timeZone: "UTC", ...opts });
-const isDateKey = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || "");
-
-/* ---------- Time helpers ---------- */
-const toMin = (hhmm) => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; };
-const toHHMM = (min) => `${pad2(Math.floor(min / 60))}:${pad2(min % 60)}`;
-function fmt(min) {
-  const h = Math.floor(min / 60) % 24, m = min % 60;
-  const ampm = h >= 12 ? "PM" : "AM";
-  const h12 = ((h + 11) % 12) + 1;
-  return `${h12}:${pad2(m)} ${ampm}`;
-}
-const fmtDur = (min) => {
-  const h = Math.floor(min / 60), m = Math.round(min % 60);
-  return h ? (m ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
-};
-const timeOr = (hhmm, fallback) => (/^\d{2}:\d{2}$/.test(hhmm || "") ? toMin(hhmm) : fallback);
-// "YYYY-MM-DDTHH:MM" (datetime-local) <-> absolute minutes
-const absFromLocal = (s) => (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s || "") ? dayNum(s.slice(0, 10)) * DAY_MIN + toMin(s.slice(11, 16)) : null);
-const dayOfAbs = (abs) => Math.floor(abs / DAY_MIN);
-function fmtWhen(abs, todayN) {
-  const d = dayOfAbs(abs), t = fmt(abs - d * DAY_MIN);
-  if (d === todayN) return t;
-  if (d === todayN + 1) return `tomorrow ${t}`;
-  return `${fmtDate(keyOf(d), { weekday: "short", month: "short", day: "numeric" })}, ${t}`;
-}
-const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()));
+// Cram study blocks use their exam's color instead of the default task blue.
+const studyStyle = (s) => {
+  if (s.color == null || s.kind === "break") return null;
+  const c = COLORS[s.color] || COLORS[0];
+  return { borderColor: c.edge, background: `repeating-linear-gradient(135deg, ${c.bg} 0 6px, #fffdf8 6px 12px)` };
+};
 const KIND_LABEL = { setup: "Setup", deep: "Deep work", break: "Break", buffer: "Buffer" };
 
 /* ---------- Storage ---------- */
@@ -451,20 +233,18 @@ function useStoredState(key, fallback, migrate) {
     return fallback;
   });
   useEffect(() => { try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {} }, [key, value]);
+  // Another tab (e.g. Cram mode) changed it: pick up the new value.
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key !== key || e.newValue == null) return;
+      try { const v = JSON.parse(e.newValue); setValue(Array.isArray(fallback) ? (migrate ? migrate(v) : v) : { ...fallback, ...v }); } catch (err) {}
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [key]);
   return [value, setValue];
 }
 
-// Older saves (one-day version) had no dates: treat them as today.
-const LEGACY = 100000; // any real absolute minute is far above this
-const migrateEvents = (list) => list.map((e) => (isDateKey(e.date) ? e : { ...e, date: dateKey(new Date()) }));
-const migrateTasks = (list) => {
-  const base = dayNum(dateKey(new Date())) * DAY_MIN;
-  return list.map((t) => ({
-    ...t,
-    deadline: t.deadline != null && t.deadline < LEGACY ? base + t.deadline : t.deadline ?? null,
-    segments: (t.segments || []).map((s) => (s.start < LEGACY ? { ...s, start: s.start + base, end: s.end + base } : s)),
-  }));
-};
 const sampleFor = (date) => SAMPLE_DAY.map((e) => ({ ...e, id: newId(), date }));
 
 function useNow() {
@@ -495,8 +275,6 @@ function layoutLanes(items) {
   return out;
 }
 
-const overlaps = (a, b) => a.start < b.end && b.start < a.end;
-const eventAbs = (e) => { const base = dayNum(e.date) * DAY_MIN; return { title: e.title, start: base + e.start, end: base + e.end }; };
 const clashWith = (t, absEvents) => absEvents.find((e) => (t.segments || []).some((s) => s.kind !== "break" && overlaps(s, e)));
 
 /* Minutes inside [from, DAY_END] covered by at least one event */
@@ -521,7 +299,7 @@ function segmentsOnDay(tasks, n) {
     if (!t.fits) return;
     t.segments.forEach((s, i) => {
       if (dayOfAbs(s.start) !== n) return;
-      out.push({ ...s, ls: s.start - n * DAY_MIN, le: s.end - n * DAY_MIN, taskId: t.id, title: t.title, i,
+      out.push({ ...s, ls: s.start - n * DAY_MIN, le: s.end - n * DAY_MIN, taskId: t.id, title: t.title, i, color: t.study ? t.color : null,
         sessionStart: i === 0 || t.segments[i - 1].end !== s.start });
     });
   });
@@ -689,7 +467,9 @@ function TaskEstimator({ onAdd, todayN, lookahead }) {
   );
 }
 
-function TaskList({ tasks, absEvents, nowAbs, todayN, settings, onSettings, onOptimize, onRemove, onJump }) {
+function TaskList({ tasks: allTasks, cram, absEvents, nowAbs, todayN, settings, onSettings, onOptimize, onRemove, onJump }) {
+  const tasks = allTasks.filter((t) => !t.study);
+  const study = allTasks.filter((t) => t.study);
   const unfit = tasks.filter((t) => !t.fits);
   const clashing = tasks.filter((t) => t.fits && clashWith(t, absEvents));
   return (
@@ -697,6 +477,13 @@ function TaskList({ tasks, absEvents, nowAbs, todayN, settings, onSettings, onOp
       <h2>Flexible tasks</h2>
       <p className="sub">Reality-checked tasks the planner can move around your fixed events, across days.</p>
       <div className="stack" style={{ gap: 12 }}>
+        {cram.active && (
+          <p className="cram-note">
+            <b>Cram mode is on.</b> {study.filter((t) => t.fits).length} study sessions for {(cram.exams || []).length} exams
+            {cram.effort < 1 ? `, homework trimmed to ${Math.round(cram.effort * 100)}%` : ""}
+            {study.some((t) => !t.fits) ? `, ${study.filter((t) => !t.fits).length} sessions didn't fit` : ""}. <a href="cram.html">Adjust in Cram mode →</a>
+          </p>
+        )}
         {tasks.length === 0 && <p className="empty">Nothing yet. Run a reality check, then add it to your calendar.</p>}
         {unfit.length > 0 && (
           <p className="banner">No room in the next {settings.lookahead} days for {unfit.map((t) => t.title).join(", ")}. Look further ahead, raise the daily max, or move wind-down later.</p>
@@ -757,7 +544,7 @@ function TaskList({ tasks, absEvents, nowAbs, todayN, settings, onSettings, onOp
         {settings.planFrom
           ? <button className="linkbtn" type="button" onClick={() => onSettings({ planFrom: "" })}>Plan from now instead</button>
           : <p className="note" style={{ margin: 0 }}>Leave "Plan from" empty to plan from right now. Max 0 = no daily limit.</p>}
-        <button className="btn" type="button" disabled={tasks.length === 0} onClick={onOptimize}>Optimize my schedule</button>
+        <button className="btn" type="button" disabled={allTasks.length === 0} onClick={onOptimize}>Optimize my schedule</button>
         <p className="note" style={{ margin: 0 }}>
           Earliest deadline first, then the task you're dreading most. 10 min of breathing room around everything,
           deep work in sessions of 50 min or less with 10 min breaks, a daily cap on task time, nothing after wind-down.
@@ -843,7 +630,7 @@ function DayColumn({ date, isToday, isPast, now, pxPerMin, windDown, events, seg
         const clash = s.kind !== "break" && events.some((e) => overlaps({ start: s.ls, end: s.le }, e));
         return (
           <div key={s.taskId + ":" + s.i} className={`tseg ${s.kind}` + (clash ? " conflict" : "")}
-            style={{ top: top + 1, height: Math.max(h - 2, 3) }}
+            style={{ top: top + 1, height: Math.max(h - 2, 3), ...studyStyle(s) }}
             title={`${s.title} · ${KIND_LABEL[s.kind]} · ${fmt(s.ls)} – ${fmt(s.le)}`}>
             {h >= 13 && (
               <span className="tseg-label">
@@ -935,10 +722,10 @@ function MonthGrid({ anchor, events, tasks, today, onOpenDay }) {
       t.segments.forEach((s) => {
         if (s.kind === "break") return;
         const d = keyOf(dayOfAbs(s.start));
-        perDay[d] = perDay[d] || { start: s.start - dayOfAbs(s.start) * DAY_MIN, min: 0 };
+        perDay[d] = perDay[d] || { start: s.start - dayOfAbs(s.start) * DAY_MIN, min: 0, color: t.study ? t.color : null };
         perDay[d].min += s.end - s.start;
       });
-      Object.entries(perDay).forEach(([d, v]) => { (m[d] = m[d] || []).push({ kind: "task", start: v.start, title: t.title, min: v.min, id: t.id }); });
+      Object.entries(perDay).forEach(([d, v]) => { (m[d] = m[d] || []).push({ kind: "task", start: v.start, title: t.title, min: v.min, id: t.id, color: v.color }); });
     });
     Object.values(m).forEach((list) => list.sort((a, b) => a.start - b.start));
     return m;
@@ -963,7 +750,7 @@ function MonthGrid({ anchor, events, tasks, today, onOpenDay }) {
                     <span className="mono">{fmt(it.start).replace(":00", "").replace(" ", "").toLowerCase()}</span>{it.title}
                   </div>
                 ) : (
-                  <div key={it.id} className="chip task"><span className="mono">{fmtDur(it.min)}</span>{it.title}</div>
+                  <div key={it.id} className="chip task" style={it.color != null ? { borderColor: (COLORS[it.color] || COLORS[0]).edge, background: (COLORS[it.color] || COLORS[0]).bg } : null}><span className="mono">{fmtDur(it.min)}</span>{it.title}</div>
                 ))}
                 {items.length > 3 && <span className="more">+{items.length - 3} more</span>}
               </div>
@@ -980,6 +767,7 @@ function App() {
   const [tasks, setTasks] = useStoredState(TASKS_KEY, [], migrateTasks);
   const [settings, setSettings] = useStoredState(SETTINGS_KEY,
     { windDown: "21:00", planFrom: "", lookahead: 7, dailyCapH: 4, hourPx: ZOOM_DEFAULT, view: "week" });
+  const [cram] = useStoredState(CRAM_KEY, { active: false, exams: [] });
   const [draft, setDraft] = useState(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const now = useNow();
@@ -997,14 +785,19 @@ function App() {
 
   const absEvents = useMemo(() => events.map(eventAbs), [events]);
   const fixedBusy = absEvents.map((e) => [e.start, e.end]);
-  const windows = planningWindows(planFromAbs, lookahead, DAY_START, windDown);
+  // Look far enough ahead to cover every study session Cram mode pinned to a day.
+  const lastPinned = Math.max(0, ...tasks.filter((t) => t.latest != null).map((t) => dayOfAbs(t.latest - 1)));
+  const windows = planningWindows(planFromAbs, Math.max(lookahead, lastPinned - dayOfAbs(planFromAbs) + 1), DAY_START, windDown);
+  const cramOpt = cram.active ? { hwCapByDay: cram.hwCapByDay || {}, effort: Number(cram.effort) || 1 } : null;
+  const hwCap = cramOpt ? (d) => (d in cramOpt.hwCapByDay ? cramOpt.hwCapByDay[d] : dailyCap) : dailyCap;
   const isDone = (t) => t.fits && t.segments.length && t.segments[t.segments.length - 1].end <= nowAbs;
 
   // Place one new task in the time left over, without moving anything already planned.
   const addTask = (spec) => {
     const segs = tasks.flatMap((t) => t.segments || []);
-    const p = placeTask(spec, [...fixedBusy, ...segs.map((s) => [s.start, s.end])], windows,
-      { dailyCap, capLeft: capLeftFrom(segs, dailyCap) });
+    const hwSegs = tasks.filter((t) => !t.study).flatMap((t) => t.segments || []);
+    const p = placeTask(trimForCram(spec, cramOpt), [...fixedBusy, ...segs.map((s) => [s.start, s.end])], windows,
+      { dailyCap: hwCap, capLeft: capLeftFrom(hwSegs, hwCap) });
     const t = { ...spec, id: newId(), ...p };
     setTasks((ts) => [...ts, t]);
     if (t.fits) setAnchor(keyOf(dayOfAbs(t.segments[0].start)));
@@ -1013,8 +806,9 @@ function App() {
   // Re-plan every unfinished flexible task from scratch around the fixed events.
   const optimize = () => {
     const doneSegs = tasks.filter(isDone).flatMap((t) => t.segments);
-    const plan = planTasks(tasks.filter((t) => !isDone(t)), [...fixedBusy, ...doneSegs.map((s) => [s.start, s.end])], windows,
-      { dailyCap, capLeft: capLeftFrom(doneSegs, dailyCap) });
+    const doneHw = tasks.filter((t) => isDone(t) && !t.study).flatMap((t) => t.segments);
+    const plan = planAll(tasks.filter((t) => !isDone(t)), [...fixedBusy, ...doneSegs.map((s) => [s.start, s.end])], windows,
+      { dailyCap, capLeft: capLeftFrom(doneHw, hwCap), cram: cramOpt });
     setTasks((ts) => ts.map((t) => (plan[t.id] ? { ...t, ...plan[t.id] } : t)));
   };
 
@@ -1082,7 +876,10 @@ function App() {
           <h1>Reality<span>Check</span></h1>
           <p>How long will this <em>actually</em> take me, and what's left of my week?</p>
         </div>
-        <div className="date-pill">{todayLabel}</div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <a className="btn cram-link" href="cram.html">Cram mode{cram.active ? " · on" : ""} →</a>
+          <div className="date-pill">{todayLabel}</div>
+        </div>
       </header>
 
       <div className="layout">
@@ -1090,7 +887,7 @@ function App() {
           <DayStats events={events} tasks={tasks} date={view === "day" ? anchor : now.today} now={now} />
           <AddEventForm onAdd={(ev) => setEvents((es) => [...es, ev])} draft={draft} defaultDate={view === "day" ? anchor : now.today} />
           <TaskEstimator onAdd={addTask} todayN={todayN} lookahead={lookahead} />
-          <TaskList tasks={tasks} absEvents={absEvents} nowAbs={nowAbs} todayN={todayN}
+          <TaskList tasks={tasks} cram={cram} absEvents={absEvents} nowAbs={nowAbs} todayN={todayN}
             settings={{ ...settings, lookahead: settings.lookahead, dailyCapH: settings.dailyCapH }} onSettings={updateSettings}
             onOptimize={optimize} onRemove={(id) => setTasks((ts) => ts.filter((t) => t.id !== id))} onJump={openDay} />
         </aside>
