@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RealityCheck</title>
+<style>
+  :root {
+    --bg: #f6f5f1; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6a65; --line: #e3e1da;
+    --accent: #3b5bdb; --accent-ink: #ffffff; --warn: #c92a2a; --past: rgba(0,0,0,0.045);
+    --setup: #f59f00; --deep: #3b5bdb; --buffer: #9c9c94;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #151514; --panel: #1f1f1d; --ink: #ecebe6; --muted: #9a9993; --line: #33322f;
+      --accent: #748ffc; --accent-ink: #10131f; --warn: #ff6b6b; --past: rgba(255,255,255,0.04);
+      --setup: #fcc419; --deep: #748ffc; --buffer: #7a7a73;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #151514; --panel: #1f1f1d; --ink: #ecebe6; --muted: #9a9993; --line: #33322f;
+    --accent: #748ffc; --accent-ink: #10131f; --warn: #ff6b6b; --past: rgba(255,255,255,0.04);
+    --setup: #fcc419; --deep: #748ffc; --buffer: #7a7a73;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .app { display: grid; grid-template-columns: 340px 1fr; gap: 20px; max-width: 1200px;
+    margin: 0 auto; padding: 20px 16px; }
+  @media (max-width: 800px) { .app { grid-template-columns: 1fr; } }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 10px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .stat b { display: block; font-size: 18px; }
+  .stat span { color: var(--muted); font-size: 12px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
+  input[type=text], input[type=time], input[type=number] { width: 100%; padding: 7px 9px; border: 1px solid var(--line);
+    border-radius: 8px; background: var(--bg); color: var(--ink); font: inherit; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .row { display: flex; gap: 8px; } .row > * { flex: 1; }
+  button { font: inherit; border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+    padding: 7px 12px; border-radius: 8px; cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); width: 100%; margin-top: 12px; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  .err { color: var(--warn); font-size: 12px; margin-top: 6px; }
+  .sliderhead { display: flex; justify-content: space-between; }
+  .sliderhead output { color: var(--ink); font-weight: 600; }
+  .result .headline { font-size: 16px; margin-bottom: 12px; }
+  .result .headline strong { font-size: 20px; }
+  .stack { display: flex; height: 14px; border-radius: 7px; overflow: hidden; margin-bottom: 12px; }
+  .phase { margin-bottom: 10px; }
+  .phase .top { display: flex; justify-content: space-between; font-weight: 600; }
+  .phase .bar { height: 8px; border-radius: 4px; margin: 4px 0; }
+  .phase p { margin: 0; color: var(--muted); font-size: 12px; }
+  .timeline-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px;
+    max-height: calc(100vh - 40px); overflow-y: auto; }
+  .timeline { position: relative; margin-left: 52px; }
+  .hour { position: absolute; left: -52px; right: 0; border-top: 1px solid var(--line); }
+  .hour span { position: absolute; top: -9px; left: 0; font-size: 11px; color: var(--muted); background: var(--panel); padding-right: 6px; }
+  .past { position: absolute; left: 0; right: 0; top: 0; background: var(--past); pointer-events: none; }
+  .nowline { position: absolute; left: -6px; right: 0; border-top: 2px solid var(--warn); pointer-events: none; z-index: 3; }
+  .nowline::before { content: ""; position: absolute; left: -4px; top: -6px; width: 10px; height: 10px; border-radius: 50%; background: var(--warn); }
+  .event { position: absolute; border-radius: 6px; padding: 4px 6px; color: #fff; font-size: 12px; overflow: hidden; z-index: 2;
+    border: 1px solid rgba(0,0,0,0.15); }
+  .event .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .event .tag { display: inline-block; background: rgba(0,0,0,0.3); border-radius: 4px; padding: 0 4px; font-size: 10px; margin-top: 2px; }
+  .event .del { position: absolute; top: 2px; right: 2px; display: none; padding: 0 6px; font-size: 12px; line-height: 18px;
+    background: rgba(0,0,0,0.35); color: #fff; border: 0; }
+  .event:hover .del { display: block; }
+  .slot { position: absolute; left: 0; right: 0; cursor: pointer; z-index: 1; }
+  .slot:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 8px; flex-wrap: wrap; }
+  .sub { color: var(--muted); margin: 0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js"></script>
+
+<!-- ENGINE:START — pure estimation engine (plain JS so it can be tested outside the browser) -->
+<script>
+/**
+ * estimate({ guess, energy, distraction, dread }) -> { total, phases }
+ *   guess:       your optimistic estimate in minutes (> 0)
+ *   energy:      1 (drained) .. 5 (fresh)
+ *   distraction: 1 (focused) .. 5 (phone, chat, noise)
+ *   dread:       1 (fine) .. 5 (really don't want to)
+ * Each phase is rounded to whole minutes, and total is the sum of the rounded phases.
+ */
+function estimate({ guess, energy, distraction, dread }) {
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, Number(v)));
+  const g = Number(guess);
+  if (!Number.isFinite(g) || g <= 0) throw new Error("guess must be a positive number of minutes");
+  const e = clamp(energy, 1, 5), d = clamp(distraction, 1, 5), r = clamp(dread, 1, 5);
+
+  const setup = 5 + r * 3;
+  const fatigue = 1 + (5 - e) * 0.10;
+  const deep = g * fatigue;
+  const distractionTax = deep * (d - 1) * 0.08;
+  const buffer = Math.max(5, 0.10 * (setup + deep + distractionTax));
+
+  const phases = [
+    { key: "setup", label: "Setup", minutes: Math.round(setup),
+      why: `Getting started: 5 min plus ${r * 3} min of dread-driven stalling (dread ${r}/5).` },
+    { key: "deep", label: "Deep Work", minutes: Math.round(deep + distractionTax),
+      why: `Your ${g}m guess × ${fatigue.toFixed(1)} fatigue (energy ${e}/5) = ${Math.round(deep)}m, plus ${Math.round(distractionTax)}m distraction tax (distraction ${d}/5).`,
+      parts: { base: g, fatigueExtra: Math.round(deep - g), distractionTax: Math.round(distractionTax) } },
+    { key: "buffer", label: "Buffer", minutes: Math.round(buffer),
+      why: "10% slack for wrap-up and surprises (minimum 5 min)." },
+  ];
+  const total = phases.reduce((s, p) => s + p.minutes, 0);
+  return { total, phases };
+}
+if (typeof module !== "undefined") module.exports = { estimate };
+</script>
+<!-- ENGINE:END -->
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo } = React;
+
+const DAY_START = 9 * 60, DAY_END = 23 * 60, PX = 1.2; // px per minute
+const COLORS = ["#2f9e44", "#e8590c", "#1971c2", "#9c36b5", "#c2255c", "#0c8599"];
+const STORE = "realitycheck.events.v1";
+
+const fmtClock = m => { const h = Math.floor(m / 60), mm = m % 60, ap = h >= 12 ? "PM" : "AM";
+  return `${((h + 11) % 12) + 1}:${String(mm).padStart(2, "0")} ${ap}`; };
+const fmtDur = m => m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""}`;
+const toMin = s => { const [h, m] = s.split(":").map(Number); return h * 60 + m; };
+const toInput = m => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+const uid = () => Math.random().toString(36).slice(2, 9);
+
+function loadEvents() {
+  try { const v = JSON.parse(localStorage.getItem(STORE)); return Array.isArray(v) ? v : []; } catch { return []; }
+}
+function saveEvents(evts) { try { localStorage.setItem(STORE, JSON.stringify(evts)); } catch {} }
+
+const SAMPLE = [
+  { title: "Class", start: 9 * 60 + 30, end: 10 * 60 + 45, color: COLORS[2] },
+  { title: "Lunch", start: 12 * 60, end: 12 * 60 + 45, color: COLORS[0] },
+  { title: "Lab", start: 14 * 60, end: 16 * 60, color: COLORS[3] },
+  { title: "Club meeting", start: 15 * 60 + 30, end: 16 * 60 + 30, color: COLORS[1] },
+  { title: "Dinner", start: 18 * 60 + 30, end: 19 * 60 + 15, color: COLORS[0] },
+].map(e => ({ ...e, id: uid() }));
+
+// Assign overlapping events to side-by-side columns.
+function layoutEvents(events) {
+  const sorted = [...events].sort((a, b) => a.start - b.start || b.end - a.end);
+  const out = []; let cluster = [], clusterEnd = -1;
+  const flush = () => {
+    const cols = [];
+    cluster.forEach(ev => {
+      let c = cols.findIndex(end => end <= ev.start);
+      if (c === -1) { c = cols.length; cols.push(ev.end); } else cols[c] = ev.end;
+      ev._col = c;
+    });
+    cluster.forEach(ev => out.push({ ...ev, col: ev._col, cols: cols.length, overlap: cluster.length > 1 }));
+    cluster = [];
+  };
+  sorted.forEach(ev => {
+    if (cluster.length && ev.start >= clusterEnd) { flush(); clusterEnd = -1; }
+    cluster.push({ ...ev }); clusterEnd = Math.max(clusterEnd, ev.end);
+  });
+  if (cluster.length) flush();
+  return out;
+}
+
+function freeMinutes(events, from) {
+  const lo = Math.max(DAY_START, from), hi = DAY_END;
+  if (lo >= hi) return 0;
+  const iv = events.map(e => [Math.max(e.start, lo), Math.min(e.end, hi)]).filter(([a, b]) => b > a).sort((a, b) => a[0] - b[0]);
+  let busy = 0, cs = null, ce = null;
+  iv.forEach(([a, b]) => { if (cs === null) { cs = a; ce = b; } else if (a <= ce) ce = Math.max(ce, b); else { busy += ce - cs; cs = a; ce = b; } });
+  if (cs !== null) busy += ce - cs;
+  return hi - lo - busy;
+}
+
+function Slider({ label, value, onChange, low, high }) {
+  return (
+    <div>
+      <label className="sliderhead"><span>{label} <small>({low} → {high})</small></span><output>{value}</output></label>
+      <input type="range" min="1" max="5" step="1" value={value} onChange={e => onChange(Number(e.target.value))} />
+    </div>
+  );
+}
+
+function ResultCard({ guess, result }) {
+  const phaseColor = { setup: "var(--setup)", deep: "var(--deep)", buffer: "var(--buffer)" };
+  const max = Math.max(...result.phases.map(p => p.minutes));
+  const extra = result.total - guess;
+  return (
+    <div className="card result">
+      <h2>Reality check</h2>
+      <div className="headline">You said <strong>{fmtDur(guess)}</strong> → Reality: <strong>{fmtDur(result.total)}</strong>
+        <div className="sub">{extra > 0 ? `+${fmtDur(extra)} you didn't plan for (${Math.round((result.total / guess - 1) * 100)}% more)` : "Your guess holds up."}</div>
+      </div>
+      <div className="stack" aria-hidden="true">
+        {result.phases.map(p => <div key={p.key} style={{ flex: p.minutes, background: phaseColor[p.key] }} />)}
+      </div>
+      {result.phases.map(p => (
+        <div className="phase" key={p.key}>
+          <div className="top"><span>{p.label}</span><span>{fmtDur(p.minutes)}</span></div>
+          <div className="bar" style={{ width: `${(p.minutes / max) * 100}%`, background: phaseColor[p.key] }} />
+          <p>{p.why}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function App() {
+  const [events, setEvents] = useState(loadEvents);
+  const [now, setNow] = useState(nowMin());
+  const [form, setForm] = useState({ title: "", start: "13:00", end: "14:00" });
+  const [formErr, setFormErr] = useState("");
+  const [task, setTask] = useState({ title: "", guess: 60, energy: 3, distraction: 3, dread: 3 });
+  const [result, setResult] = useState(null);
+
+  useEffect(() => saveEvents(events), [events]);
+  useEffect(() => { const t = setInterval(() => setNow(nowMin()), 30000); return () => clearInterval(t); }, []);
+
+  const laid = useMemo(() => layoutEvents(events), [events]);
+  const stillYours = freeMinutes(events, now);
+  const scheduled = events.reduce((s, e) => s + (e.end - e.start), 0);
+  const guessValid = Number(task.guess) > 0 && Number(task.guess) <= 24 * 60;
+
+  // Re-estimate when inputs change after the first click, so the card stays in sync.
+  useEffect(() => { if (result && guessValid) setResult({ guess: Number(task.guess), ...estimate(task) }); },
+    [task.guess, task.energy, task.distraction, task.dread]);
+
+  function addEvent(e) {
+    e.preventDefault();
+    const start = toMin(form.start), end = toMin(form.end);
+    if (!form.title.trim()) return setFormErr("Give it a name.");
+    if (end <= start) return setFormErr("End has to be after start.");
+    setEvents([...events, { id: uid(), title: form.title.trim(), start, end, color: COLORS[events.length % COLORS.length] }]);
+    setForm({ ...form, title: "" }); setFormErr("");
+  }
+  function prefill(slotStart) {
+    setForm({ title: form.title, start: toInput(slotStart), end: toInput(Math.min(slotStart + 60, DAY_END)) });
+    document.getElementById("ev-title")?.focus();
+  }
+
+  const height = (DAY_END - DAY_START) * PX;
+  const y = m => (m - DAY_START) * PX;
+  const nowClamped = Math.min(Math.max(now, DAY_START), DAY_END);
+
+  return (
+    <div className="app">
+      <aside>
+        <h1>RealityCheck</h1>
+        <p className="sub" style={{ marginBottom: 16 }}>How long things actually take.</p>
+
+        <div className="card">
+          <h2>Today</h2>
+          <div className="stats">
+            <div className="stat"><b>{fmtDur(stillYours)}</b><span>Still yours</span></div>
+            <div className="stat"><b>{fmtDur(scheduled)}</b><span>Booked</span></div>
+            <div className="stat"><b>{events.length}</b><span>Events</span></div>
+          </div>
+        </div>
+
+        <form className="card" onSubmit={addEvent}>
+          <h2>Add fixed event</h2>
+          <label htmlFor="ev-title">Title</label>
+          <input id="ev-title" type="text" value={form.title} placeholder="e.g. Lecture" onChange={e => setForm({ ...form, title: e.target.value })} />
+          <div className="row">
+            <div><label>Start</label><input type="time" value={form.start} onChange={e => setForm({ ...form, start: e.target.value })} /></div>
+            <div><label>End</label><input type="time" value={form.end} onChange={e => setForm({ ...form, end: e.target.value })} /></div>
+          </div>
+          {formErr && <div className="err">{formErr}</div>}
+          <button className="primary" type="submit">Add event</button>
+        </form>
+
+        <div className="card">
+          <h2>Task estimator</h2>
+          <label>Task</label>
+          <input type="text" value={task.title} placeholder="e.g. Problem set 4" onChange={e => setTask({ ...task, title: e.target.value })} />
+          <label>Your guess (minutes)</label>
+          <input type="number" min="1" max="1440" value={task.guess} onChange={e => setTask({ ...task, guess: e.target.value })} />
+          <Slider label="Energy" low="drained" high="fresh" value={task.energy} onChange={v => setTask({ ...task, energy: v })} />
+          <Slider label="Distraction" low="focused" high="chaos" value={task.distraction} onChange={v => setTask({ ...task, distraction: v })} />
+          <Slider label="Dread" low="fine" high="avoiding it" value={task.dread} onChange={v => setTask({ ...task, dread: v })} />
+          {!guessValid && <div className="err">Enter a guess between 1 and 1440 minutes.</div>}
+          <button className="primary" disabled={!guessValid}
+            onClick={() => setResult({ guess: Number(task.guess), ...estimate(task) })}>Reality check</button>
+        </div>
+
+        {result && <ResultCard guess={result.guess} result={result} />}
+      </aside>
+
+      <main className="timeline-wrap">
+        <div className="toolbar">
+          <h2 style={{ margin: 0 }}>Today · 9 AM – 11 PM</h2>
+          <div className="row" style={{ flex: "0 0 auto" }}>
+            <button onClick={() => setEvents(SAMPLE.map(e => ({ ...e, id: uid() })))}>Sample day</button>
+            <button onClick={() => setEvents([])}>Clear all</button>
+          </div>
+        </div>
+        <div className="timeline" style={{ height }}>
+          {Array.from({ length: (DAY_END - DAY_START) / 30 }, (_, i) => DAY_START + i * 30).map(m => (
+            <div key={m} className="slot" style={{ top: y(m), height: 30 * PX }} title={`Add at ${fmtClock(m)}`} onClick={() => prefill(m)} />
+          ))}
+          {Array.from({ length: (DAY_END - DAY_START) / 60 + 1 }, (_, i) => DAY_START + i * 60).map(m => (
+            <div key={m} className="hour" style={{ top: y(m) }}><span>{fmtClock(m).replace(":00", "")}</span></div>
+          ))}
+          {now > DAY_START && <div className="past" style={{ height: y(nowClamped) }} />}
+          {now >= DAY_START && now <= DAY_END && <div className="nowline" style={{ top: y(now) }} />}
+          {laid.map(ev => {
+            const top = y(Math.max(ev.start, DAY_START)), bottom = y(Math.min(ev.end, DAY_END));
+            if (bottom <= top) return null;
+            return (
+              <div key={ev.id} className="event" style={{ top, height: bottom - top, background: ev.color,
+                left: `calc(${(ev.col / ev.cols) * 100}% + 2px)`, width: `calc(${100 / ev.cols}% - 4px)` }}>
+                <div className="t">{ev.title}</div>
+                <div>{fmtClock(ev.start)} – {fmtClock(ev.end)}</div>
+                {ev.overlap && <span className="tag">overlap</span>}
+                <button className="del" title="Delete" onClick={() => setEvents(events.filter(e => e.id !== ev.id))}>×</button>
+              </div>
+            );
+          })}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
