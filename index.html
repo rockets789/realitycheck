@@ -118,6 +118,10 @@
   .event .del { position: absolute; top: 4px; right: 4px; border: none; background: rgba(255,255,255,.85); border-radius: 6px; width: 22px; height: 22px; cursor: pointer; opacity: 0; font-size: 14px; line-height: 1; }
   .event:hover .del, .event .del:focus-visible { opacity: 1; }
   .event.conflict { outline: 2px dashed var(--accent); outline-offset: 1px; }
+  .event.exam { border: 2px solid var(--accent); border-left-width: 5px; box-shadow: 0 2px 10px rgba(224, 96, 58, .18); }
+  .exam-badge { display: inline-block; font-family: "DM Mono", monospace; font-size: 9.5px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase;
+    background: var(--accent); color: #fff; border-radius: 4px; padding: 0 4px; margin-right: 5px; vertical-align: 1px; }
+  .chip.exam { font-weight: 600; outline: 1.5px solid var(--accent); }
   .conflict-badge { display: inline-block; font-size: 10.5px; font-weight: 600; color: var(--accent); background: var(--accent-soft); border-radius: 5px; padding: 0 5px; margin-left: 4px; }
 
   .now-line { position: absolute; left: -4px; right: 0; height: 0; border-top: 2px solid var(--accent); z-index: 6; pointer-events: none; }
@@ -265,6 +269,34 @@
   .done-tag { color: var(--sage); font-size: 12px; }
   .cram-btn { background: var(--accent); border-color: var(--accent); }
   .exam-hint { margin: -2px 0 0; font-size: 13px; background: #fff4e0; border-radius: 10px; padding: 8px 11px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  /* Right now */
+  .rn-toggle { font-size: 14px; padding: 7px 12px; background: var(--card); color: var(--ink); border-color: var(--ink); }
+  .rn-toggle.on { background: var(--ink); color: #fff; }
+  body.tunnel .rail { display: none; }
+  body.tunnel .app { padding-left: 20px !important; }
+  .rightnow { --tone: var(--accent); max-width: 620px; margin: 4vh auto 0; background: var(--card); border: 1px solid var(--line); border-top: 6px solid var(--tone);
+    border-radius: 20px; padding: 22px 26px 26px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; }
+  .rightnow.rest { --tone: var(--sage); }
+  .rightnow.event { --tone: #4a72c4; }
+  .rightnow.exam { --tone: #a3261b; }
+  .rn-top { align-self: stretch; display: flex; justify-content: space-between; align-items: center; }
+  .rn-label { font-family: "DM Mono", monospace; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--tone); font-weight: 500; }
+  .rn-title { font-family: "Fraunces", serif; font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 4px 0 0; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+  .rn-clock { position: relative; width: min(280px, 70vw); aspect-ratio: 1; }
+  .rn-clock svg { width: 100%; height: 100%; }
+  .rn-clock circle { fill: none; stroke-width: 10; }
+  .rn-clock .track { stroke: var(--paper); }
+  .rn-clock .fill { stroke: var(--tone); stroke-linecap: round; transition: stroke-dashoffset 1s linear; }
+  .rn-time { position: absolute; inset: 0; display: grid; place-items: center; font-size: clamp(40px, 9vw, 58px); font-weight: 500; letter-spacing: -0.03em; }
+  .rn-sub { margin: 0; color: var(--muted); max-width: 440px; }
+  .rn-progress { align-self: stretch; display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--muted); }
+  .rn-progress .track { height: 8px; border-radius: 4px; background: var(--paper); overflow: hidden; }
+  .rn-progress .track i { display: block; height: 100%; background: var(--tone); border-radius: 4px; }
+  .rn-done { background: var(--tone); border-color: var(--tone); }
+  .rn-next { align-self: stretch; border-top: 1px solid var(--line); margin-top: 6px; padding-top: 14px; display: flex; flex-direction: column; gap: 3px; }
+  .rn-next .rn-label { color: var(--muted); }
+  .rn-next b { font-size: 18px; font-weight: 600; }
+  .rn-when { font-size: 13px; color: var(--muted); }
   .grades-link { text-decoration: none; font-size: 14px; padding: 7px 12px; }
   .cram-link { text-decoration: none; background: var(--accent); border-color: var(--accent); font-size: 14px; padding: 7px 12px; }
   .cram-note { background: #fff4e0; border-radius: 10px; padding: 9px 11px; font-size: 13px; margin: 0; }
@@ -631,6 +663,107 @@ function TaskList({ tasks: allTasks, cram, absEvents, nowAbs, todayN, settings, 
           Finished tasks stay put.
         </p>
       </div>
+    </div>
+  );
+}
+
+/* ---------- "Right now" tunnel vision ---------- */
+// Now as fractional absolute minutes, for a countdown that ticks every second
+const preciseNow = () => { const d = new Date(); return dayNum(dateKey(d)) * DAY_MIN + d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60; };
+const clock = (min) => {
+  const s = Math.max(0, Math.ceil(min * 60)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+  return h ? `${h}:${pad2(m)}:${pad2(r)}` : `${pad2(m)}:${pad2(r)}`;
+};
+const PHASE = { setup: "Getting set up", deep: "Deep work", break: "Break", buffer: "Wrapping up" };
+
+/* Everything on the calendar as blocks: each task's back-to-back segments (breaks included) form one session. */
+function timelineBlocks(tasks, events) {
+  const out = [];
+  tasks.filter((t) => t.fits && t.segments.length).forEach((t) => {
+    let cur = null;
+    t.segments.forEach((s) => {
+      if (cur && cur.end === s.start) { cur.end = s.end; cur.segs.push(s); }
+      else { cur = { kind: "task", task: t, title: t.title, start: s.start, end: s.end, segs: [s] }; out.push(cur); }
+    });
+  });
+  events.forEach((e) => { const a = eventAbs(e); out.push({ kind: "event", title: e.title, start: a.start, end: a.end, exam: !!e.cramExamId }); });
+  return out.sort((a, b) => a.start - b.start);
+}
+
+function RightNow({ tasks, events, windDown, todayN, onDone, onExit }) {
+  const [now, setNow] = useState(preciseNow);
+  useEffect(() => { const t = setInterval(() => setNow(preciseNow()), 1000); return () => clearInterval(t); }, []);
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onExit(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onExit]);
+
+  const blocks = timelineBlocks(tasks, events);
+  // A fixed event beats a task block if they overlap: you're physically somewhere.
+  const live = blocks.filter((b) => b.start <= now && now < b.end);
+  const cur = live.find((b) => b.kind === "event") || live[0] || null;
+  const next = blocks.find((b) => b !== cur && b.start >= (cur ? cur.end : now) - 0.001 && !(cur && b.kind === "task" && cur.kind === "task" && b.task.id === cur.task.id && b.start === cur.end));
+  const nextAny = next || blocks.find((b) => b.start > now);
+  const seg = cur && cur.kind === "task" ? cur.segs.find((s) => s.start <= now && now < s.end) : null;
+  const pastWindDown = now - todayN * DAY_MIN >= windDown;
+
+  // What the big countdown counts to, and what fraction of it has gone by
+  let label, title, sub, until, from;
+  if (cur && cur.kind === "task") {
+    const work = cur.segs.filter((s) => s.kind === "deep"), idx = work.findIndex((s) => s === seg);
+    label = seg.kind === "break" ? "Break" : PHASE[seg.kind] + (seg.kind === "deep" && work.length > 1 ? ` · ${idx + 1} of ${work.length}` : "");
+    title = cur.title;
+    until = seg.end; from = seg.start;
+    sub = seg.kind === "break" ? `Back to it at ${fmt(Math.round(seg.end) % DAY_MIN)}` : `${PHASE[seg.kind]} until ${fmt(seg.end % DAY_MIN)}${cur.end > seg.end ? ` · this session ends ${fmt(cur.end % DAY_MIN)}` : ""}`;
+  } else if (cur) {
+    label = cur.exam ? "Exam" : "Fixed event"; title = cur.title; until = cur.end; from = cur.start;
+    sub = `Until ${fmt(cur.end % DAY_MIN)}. Be here, not on your phone.`;
+  } else if (nextAny && dayOfAbs(nextAny.start) === todayN && !pastWindDown) {
+    label = "Free right now"; title = "Nothing scheduled"; until = nextAny.start; from = Math.max(now - 1, ...blocks.filter((b) => b.end <= now).map((b) => b.end));
+    sub = `Rest, or get a head start. ${nextAny.title} starts at ${fmt(nextAny.start % DAY_MIN)}.`;
+  } else {
+    label = "Done for today"; title = pastWindDown ? "Wind down" : "Nothing else today"; until = null;
+    sub = nextAny ? `First thing next: ${nextAny.title}, ${fmtWhen(nextAny.start, todayN)}.` : "Nothing planned. Enjoy it.";
+  }
+  const frac = until != null && until > from ? clamp((now - from) / (until - from), 0, 1) : 0;
+  const t = cur && cur.kind === "task" ? cur.task : null;
+  const doneMin = t ? t.segments.filter((s) => s.kind !== "break").reduce((x, s) => x + clamp(Math.min(s.end, now) - s.start, 0, s.end - s.start), 0) : 0;
+  const workMin = t ? t.segments.filter((s) => s.kind !== "break").reduce((x, s) => x + s.end - s.start, 0) : 0;
+  const R = 92, C = 2 * Math.PI * R;
+  const tone = cur ? (cur.kind === "event" ? (cur.exam ? "exam" : "event") : seg.kind === "break" ? "rest" : "work") : "rest";
+
+  return (
+    <div className={`rightnow ${tone}`} id="f-now">
+      <div className="rn-top">
+        <span className="rn-label">{label}</span>
+        <button className="btn ghost small" type="button" onClick={onExit} title="Back to the full calendar (Esc)">Show everything</button>
+      </div>
+      <h2 className="rn-title">{title}</h2>
+      {until != null && (
+        <div className="rn-clock">
+          <svg viewBox="0 0 200 200" aria-hidden="true">
+            <circle cx="100" cy="100" r={R} className="track" />
+            <circle cx="100" cy="100" r={R} className="fill" strokeDasharray={C} strokeDashoffset={C * frac} transform="rotate(-90 100 100)" />
+          </svg>
+          <div className="rn-time mono" role="timer" aria-label={`${clock(until - now)} left`}>{clock(until - now)}</div>
+        </div>
+      )}
+      <p className="rn-sub">{sub}</p>
+      {t && (
+        <div className="rn-progress">
+          <div className="track"><i style={{ width: `${workMin ? (doneMin / workMin) * 100 : 0}%` }} /></div>
+          <span>{fmtDur(Math.round(doneMin))} of {fmtDur(workMin)} done{t.deadline != null ? ` · due ${fmtWhen(t.deadline, todayN)}` : ""}</span>
+        </div>
+      )}
+      {t && <button className="btn rn-done" type="button" onClick={() => onDone(t)}>I'm done with this</button>}
+      {next && (dayOfAbs(next.start) === todayN || !cur) && (
+        <div className="rn-next">
+          <span className="rn-label">Up next</span>
+          <div><b>{next.exam && <span className="exam-badge">Exam</span>}{next.title}</b></div>
+          <div className="rn-when">{fmtWhen(next.start, todayN)} · in {fmtDur(Math.max(1, Math.round(next.start - now)))}</div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1154,7 +1287,7 @@ function DayColumn({ date, isToday, isPast, now, pxPerMin, windDown, events, seg
         const widthPct = 100 / ev.laneCount;
         const short = bottom - top < 40;
         return (
-          <div key={ev.id} className={"event" + (conflicts.has(ev.id) ? " conflict" : "")}
+          <div key={ev.id} className={"event" + (ev.cramExamId ? " exam" : "") + (conflicts.has(ev.id) ? " conflict" : "")}
             title={`${ev.title} · ${fmt(ev.start)} – ${fmt(ev.end)}`}
             style={{
               top: top + 1, height: bottom - top - 2,
@@ -1162,6 +1295,7 @@ function DayColumn({ date, isToday, isPast, now, pxPerMin, windDown, events, seg
               background: c.bg, borderLeftColor: c.edge,
             }}>
             <div className="t">
+              {ev.cramExamId && <span className="exam-badge">Exam</span>}
               {ev.title}
               {conflicts.has(ev.id) && <span className="conflict-badge">overlap</span>}
             </div>
@@ -1266,7 +1400,7 @@ function MonthGrid({ anchor, events, tasks, today, onOpenDay }) {
   const cells = Math.ceil((weekday(first) + daysInMonth) / 7) * 7;
   const byDate = useMemo(() => {
     const m = {};
-    events.forEach((e) => { (m[e.date] = m[e.date] || []).push({ kind: "event", start: e.start, title: e.title, color: e.color, id: e.id }); });
+    events.forEach((e) => { (m[e.date] = m[e.date] || []).push({ kind: "event", start: e.start, title: e.title, color: e.color, id: e.id, exam: !!e.cramExamId }); });
     tasks.forEach((t) => {
       if (!t.fits) return;
       const perDay = {};
@@ -1297,7 +1431,8 @@ function MonthGrid({ anchor, events, tasks, today, onOpenDay }) {
                 aria-label={`${fmtDate(d, { weekday: "long", month: "long", day: "numeric" })}, ${items.length} items`}>
                 <span className="num">{Number(d.slice(8))}</span>
                 {items.slice(0, 3).map((it) => it.kind === "event" ? (
-                  <div key={it.id} className="chip" style={{ background: (COLORS[it.color] || COLORS[0]).bg, borderLeftColor: (COLORS[it.color] || COLORS[0]).edge }}>
+                  <div key={it.id} className={"chip" + (it.exam ? " exam" : "")} style={{ background: (COLORS[it.color] || COLORS[0]).bg, borderLeftColor: (COLORS[it.color] || COLORS[0]).edge }}>
+                    {it.exam && <span className="exam-badge">Exam</span>}
                     <span className="mono">{fmt(it.start).replace(":00", "").replace(" ", "").toLowerCase()}</span>{it.title}
                   </div>
                 ) : (
@@ -1454,10 +1589,10 @@ function App() {
       applyCram(nextCram, nextEvents, what, baseTasks);
     } else {
       if (removedTask) setTasks(baseTasks);
-      if (newEvents.length) setEvents(nextEvents);
+      if (newEvents.length || examsChanged) setEvents(withExamEvents(nextEvents, exams, nowAbs));
       if (examsChanged) {
         setCram(nextCram);
-        setCramMsg({ at: Date.now(), what, missing: 0, moved: [], note: "They're in Cram mode, not planned yet.",
+        setCramMsg({ at: Date.now(), what, missing: 0, moved: [], note: "They're on your calendar and in Cram mode; study isn't planned yet.",
           action: { label: "Plan study now", run: (c, ev) => applyCram(c, ev, "Planned your study time") } });
       } else if (parts.length) setCramMsg({ at: Date.now(), what, missing: 0, moved: [], note: " " });
     }
@@ -1522,7 +1657,7 @@ function App() {
   const deleteEvent = (id) => {
     const ev = events.find((e) => e.id === id);
     if (!ev) return;
-    if (ev.cramExamId && cram.active) {
+    if (ev.cramExamId) {
       return setCramMsg({ at: Date.now(), what: `${ev.title} comes from Cram mode`, note: "Remove or move the exam there.", moved: [], missing: 0 });
     }
     changeEvents(events.filter((e) => e.id !== id), `Removed ${ev.title} (${dayName(ev.date)})`);
@@ -1537,6 +1672,27 @@ function App() {
   const dates = view === "day" ? [anchor] : view === "week" ? Array.from({ length: 7 }, (_, i) => addDays(weekStart(anchor), i)) : [];
   const step = (dir) => setAnchor((a) => (view === "day" ? addDays(a, dir) : view === "week" ? addDays(a, 7 * dir) : addMonths(a, dir)));
   const openDay = (d) => { setAnchor(d); updateSettings({ view: "day" }); };
+
+  /* ----- "Right now" tunnel vision: only the current block, a live countdown, and what's next ----- */
+  const focus = !!settings.focusMode;
+  const setFocus = (on) => { updateSettings({ focusMode: on }); window.scrollTo(0, 0); };
+  useEffect(() => {
+    document.body.classList.toggle("tunnel", focus); // hides the feature rail too
+    const onOpen = (e) => { if (e.detail === "focus") setFocus(true); };
+    window.addEventListener("rc:open", onOpen);
+    return () => window.removeEventListener("rc:open", onOpen);
+  }, [focus]);
+  // Finished early: cut the task at "now" (time already spent stays on the calendar), free the rest, tick off its to-do.
+  const finishNow = (t) => {
+    const n = Math.floor(preciseNow());
+    setTasks((ts) => ts.flatMap((x) => {
+      if (x.id !== t.id) return [x];
+      const segs = x.segments.filter((s) => s.start < n).map((s) => (s.end > n ? { ...s, end: n } : s)).filter((s) => s.end > s.start);
+      while (segs.length && segs[segs.length - 1].kind === "break") segs.pop();
+      return segs.length ? [{ ...x, segments: segs, doneEarly: true }] : [];
+    }));
+    if (t.todoId) setTodos((ts) => ts.map((td) => (td.id === t.todoId ? { ...td, done: true } : td)));
+  };
   const title = view === "day"
     ? fmtDate(anchor, { weekday: "long", month: "long", day: "numeric", year: "numeric" })
     : view === "week"
@@ -1598,12 +1754,17 @@ function App() {
           <p>How long will this <em>actually</em> take me, and what's left of my week?</p>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <a className="btn ghost grades-link" href="grades.html">Grade check</a>
-          <a className="btn cram-link" href="cram.html">Cram mode{cram.active ? " · on" : ""} →</a>
+          <button className={"btn rn-toggle" + (focus ? " on" : "")} type="button" aria-pressed={focus} onClick={() => setFocus(!focus)}
+            title="Hide everything except what you should be doing right now">{focus ? "◉ Right now: on" : "◎ Right now"}</button>
+          {!focus && <a className="btn ghost grades-link" href="grades.html">Grade check</a>}
+          {!focus && <a className="btn cram-link" href="cram.html">Cram mode{cram.active ? " · on" : ""} →</a>}
           <div className="date-pill">{todayLabel}</div>
         </div>
       </header>
 
+      {focus ? (
+        <RightNow tasks={tasks} events={events} windDown={windDown} todayN={todayN} onDone={finishNow} onExit={() => setFocus(false)} />
+      ) : (
       <div className="layout">
         <aside className="stack">
           <DayStats events={events} tasks={tasks} date={view === "day" ? anchor : now.today} now={now} />
@@ -1681,6 +1842,7 @@ function App() {
           cram={cram} snapshot={snapshot} />
         </div>
       </div>
+      )}
       {cramMsg && (
         <div className="toast" role="status">
           <div>

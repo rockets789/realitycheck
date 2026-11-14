@@ -5,6 +5,7 @@
 (function () {
   const S = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
   const ICON = {
+    now: S('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>'),
     today: S('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
     timer: S('<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/>'),
     event: S('<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M12 12v6M9 15h6"/>'),
@@ -20,6 +21,7 @@
   const CAL = "index.html";
   // target: element id to light up; focus: what gets the cursor; open: asks the page to open a panel first
   const ITEMS = [
+    { key: "now", label: "Right now", page: CAL, target: "f-now", open: "focus" },
     { key: "today", label: "Today", page: CAL, target: "f-today" },
     { key: "timer", label: "Timer", page: CAL, target: "f-pomo" },
     { key: "event", label: "Add event", page: CAL, target: "f-event", focus: "#ev-title" },

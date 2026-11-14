@@ -35,7 +35,11 @@ async function aiCall({ apiKey, system, user, schema, effort }) {
     if (err instanceof Anthropic.AuthenticationError) throw new Error("That API key didn't work. Check it in AI settings.");
     if (err instanceof Anthropic.PermissionDeniedError) throw new Error("That API key isn't allowed to use this model.");
     if (err instanceof Anthropic.RateLimitError) throw new Error("Rate limited (or out of credits). Try again in a minute.");
-    if (err instanceof Anthropic.BadRequestError) throw new Error(`Claude rejected the request: ${err.message}`);
+    const detail = (err && err.error && err.error.error && err.error.error.message) || (err && err.message) || "";
+    if (err instanceof Anthropic.BadRequestError && /credit balance/i.test(detail)) {
+      throw new Error("Your Anthropic account is out of API credits. Add some at console.anthropic.com → Billing, then try again.");
+    }
+    if (err instanceof Anthropic.BadRequestError) throw new Error(`Claude rejected the request: ${detail}`);
     if (err instanceof Anthropic.APIConnectionError) throw new Error("Couldn't reach Claude. Check your connection.");
     if (err instanceof Anthropic.APIError) throw new Error(`Claude had a problem (${err.status || "error"}). Try again.`);
     throw err;

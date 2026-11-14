@@ -317,6 +317,12 @@ function App() {
   const todayN = dayNum(now.today);
   const nowAbs = todayN * DAY_MIN + now.min;
   const P = cramPlan({ cram, events, tasks, settings, nowAbs });
+  // Exams are facts, not plans: keep them on the calendar as you add or edit them, even before you apply.
+  useEffect(() => {
+    const next = withExamEvents(events, cram.exams, nowAbs);
+    const key = (list) => JSON.stringify(list.filter((e) => e.cramExamId));
+    if (key(next) !== key(events)) setEvents(next);
+  }, [cram.exams, events, todayN]);
   const { fromAbs, windDown, dailyCap, dailyHours, hwShare, effort, stretchH, valid, examEvents, otherEvents, alloc, study, todoHw, plan, placedStudy, sig } = P;
   const firstDay = dayOfAbs(fromAbs);
   const lastExamDay = valid.length ? Math.max(...valid.map((e) => dayOfAbs(e.at))) : firstDay + 7;

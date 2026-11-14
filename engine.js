@@ -460,11 +460,7 @@ function cramPlan({ cram, events, tasks, settings, nowAbs }) {
 
   const exams = (cram.exams || []).map((e) => Object.assign({}, e, { at: absFromLocal(e.when), days: e.days == null ? suggestedDays(e.cooked) : e.days }));
   const valid = exams.filter((e) => e.name.trim() && e.at != null && e.at > nowAbs);
-  const examEvents = valid.map((e) => {
-    const d = dayOfAbs(e.at), start = e.at - d * DAY_MIN;
-    return { id: "exam:" + e.id, cramExamId: e.id, title: `${e.name.trim()} exam`, date: keyOf(d), start,
-      end: Math.min(start + (Number(e.length) || 90), DAY_MIN), color: e.color };
-  });
+  const examEvents = valid.map(examEvent);
   const otherEvents = events.filter((e) => !e.cramExamId);
   const fixed = otherEvents.concat(examEvents).map(eventAbs).map((e) => [e.start, e.end]);
   const alloc = cramAllocate(valid, { fromAbs, dayStart: DAY_START, windDown, dailyMin: dailyHours * 60, hwShare,
@@ -496,6 +492,20 @@ function cramPlan({ cram, events, tasks, settings, nowAbs }) {
     nextTasks: hwTasks.map(withPlan(plan)).concat(placedStudy),
     offTasks: () => hwTasks.map(withPlan(runPlan(false))),
   };
+}
+
+/* A Cram exam as a fixed calendar event ("MA 261 midterm", or "Chem exam" when the name doesn't say what it is). */
+function examEvent(e) {
+  const at = absFromLocal(e.when);
+  if (at == null) return null;
+  const d = dayOfAbs(at), start = at - d * DAY_MIN, name = e.name.trim();
+  return { id: "exam:" + e.id, cramExamId: e.id, title: /\b(exam|midterm|final|quiz|test)s?\b/i.test(name) ? name : `${name} exam`,
+    date: keyOf(d), start, end: Math.min(start + (Number(e.length) || 90), DAY_MIN), color: e.color };
+}
+/* The calendar's events with every upcoming Cram exam on it, so exams show up even before study is planned. */
+function withExamEvents(events, exams, nowAbs) {
+  const upcoming = (exams || []).filter((e) => e.name.trim() && (absFromLocal(e.when) ?? -1) > nowAbs).map(examEvent);
+  return events.filter((ev) => !ev.cramExamId).concat(upcoming);
 }
 
 /* Study minutes per day from a task list, e.g. to say what a re-plan moved. */
