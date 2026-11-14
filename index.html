@@ -190,6 +190,37 @@
   .chip.task { border: 1px dashed #4a72c4; background: #f4f7fd; }
   .chip .mono { font-size: 10.5px; opacity: .7; margin-right: 4px; }
   .more { font-size: 11px; color: var(--muted); padding-left: 4px; }
+  /* Pomodoro */
+  .pomo { --pomo: var(--accent); display: flex; flex-direction: column; gap: 12px; }
+  .pomo.short { --pomo: var(--sage); }
+  .pomo.long { --pomo: #4a72c4; }
+  .pomo h2 { margin: 0; }
+  .pomo-modes { align-self: flex-start; }
+  .pomo-body { position: relative; width: 168px; height: 168px; align-self: center; }
+  .pomo-ring { width: 100%; height: 100%; }
+  .pomo-ring circle { fill: none; stroke-width: 8; }
+  .pomo-ring .track { stroke: var(--paper); }
+  .pomo-ring .fill { stroke: var(--pomo); stroke-linecap: round; transition: stroke-dashoffset .25s linear; }
+  .pomo-time { position: absolute; inset: 0; display: grid; place-items: center; font-size: 34px; font-weight: 500; letter-spacing: -0.02em; }
+  .pomo-dots { display: flex; align-items: center; gap: 6px; justify-content: center; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+  .pomo-dots i { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--pomo); }
+  .pomo-dots i.on { background: var(--pomo); }
+  .pomo-dots span { margin-left: 6px; }
+  .pomo-actions { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 8px; }
+  .pomo-actions .btn:first-child { background: var(--pomo); border-color: var(--pomo); }
+  .pomo-now { margin: 0; font-size: 13px; background: var(--paper); border-radius: 10px; padding: 8px 11px; }
+  .pomo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .pomo-settings { gap: 10px; }
+  .pomo-settings .btn[aria-pressed="true"] { border-color: var(--ink); font-weight: 600; }
+  .check { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+  .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); width: min(560px, calc(100% - 32px)); z-index: 50;
+    background: var(--ink); color: #fff; border-radius: 12px; padding: 11px 14px; font-size: 14px; display: flex; gap: 10px; align-items: flex-start;
+    box-shadow: 0 10px 30px rgba(0,0,0,.18); }
+  .toast > div { flex: 1; }
+  .toast .x { color: #fff; opacity: .7; }
+  .toast .warn { color: #ffb59c; }
+  .toast a { color: #fff; font-weight: 600; }
+  .grades-link { text-decoration: none; font-size: 14px; padding: 7px 12px; }
   .cram-link { text-decoration: none; background: var(--accent); border-color: var(--accent); font-size: 14px; padding: 7px 12px; }
   .cram-note { background: #fff4e0; border-radius: 10px; padding: 9px 11px; font-size: 13px; margin: 0; }
   .cram-note a { color: var(--ink); font-weight: 600; }
@@ -544,13 +575,164 @@ function TaskList({ tasks: allTasks, cram, absEvents, nowAbs, todayN, settings, 
         {settings.planFrom
           ? <button className="linkbtn" type="button" onClick={() => onSettings({ planFrom: "" })}>Plan from now instead</button>
           : <p className="note" style={{ margin: 0 }}>Leave "Plan from" empty to plan from right now. Max 0 = no daily limit.</p>}
-        <button className="btn" type="button" disabled={allTasks.length === 0} onClick={onOptimize}>Optimize my schedule</button>
+        <button className="btn" type="button" disabled={allTasks.length === 0 && !cram.active} onClick={onOptimize}>Optimize my schedule</button>
         <p className="note" style={{ margin: 0 }}>
           Earliest deadline first, then the task you're dreading most. 10 min of breathing room around everything,
           deep work in sessions of 50 min or less with 10 min breaks, a daily cap on task time, nothing after wind-down.
           Finished tasks stay put.
         </p>
       </div>
+    </div>
+  );
+}
+
+/* ---------- Pomodoro ---------- */
+const POMO_KEY = "realitycheck.pomodoro.v1";
+const POMO_DEFAULT = { focusMin: 25, shortMin: 5, longMin: 15, longEvery: 4, mode: "focus", running: false, endsAt: null, leftMs: null,
+  streak: 0, log: {}, sound: true, autoStart: false };
+const POMO_PRESETS = [
+  { label: "Classic 25 / 5", focusMin: 25, shortMin: 5, longMin: 15 },
+  { label: "Planner 50 / 10", focusMin: 50, shortMin: 10, longMin: 20 }, // same rhythm the scheduler uses
+];
+const POMO_LABEL = { focus: "Focus", short: "Short break", long: "Long break" };
+const pomoLen = (p, mode) => clamp(Number(mode === "focus" ? p.focusMin : mode === "short" ? p.shortMin : p.longMin) || 1, 1, 180) * 60000;
+const mmss = (ms) => { const s = Math.ceil(ms / 1000); return `${pad2(Math.floor(s / 60))}:${pad2(s % 60)}`; };
+
+function chime() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [660, 880, 990].forEach((f, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime + i * 0.22;
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.18, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+      o.connect(g).connect(ctx.destination);
+      o.start(t); o.stop(t + 0.45);
+    });
+    setTimeout(() => ctx.close(), 1500);
+  } catch (e) {}
+}
+
+/* Finish the current phase. A finished focus counts toward today and toward the long break. */
+function pomoAdvance(p, { counted }) {
+  let next = { ...p };
+  if (p.mode === "focus") {
+    if (counted) {
+      const today = dateKey(new Date()), prev = p.log[today] || { n: 0, min: 0 };
+      next.streak = p.streak + 1;
+      next.log = { [today]: { n: prev.n + 1, min: prev.min + Math.round(pomoLen(p, "focus") / 60000) } }; // only today matters
+      next.mode = next.streak % Math.max(1, Number(p.longEvery) || 4) === 0 ? "long" : "short";
+    } else next.mode = "short";
+  } else next.mode = "focus";
+  const len = pomoLen(next, next.mode);
+  return p.autoStart ? { ...next, running: true, endsAt: Date.now() + len, leftMs: null } : { ...next, running: false, endsAt: null, leftMs: null };
+}
+
+function Pomodoro({ tasks, nowAbs }) {
+  const [p, setP] = useStoredState(POMO_KEY, POMO_DEFAULT);
+  const [, tick] = useState(0);
+  const [open, setOpen] = useState(false);
+  const len = pomoLen(p, p.mode);
+  const left = p.running ? Math.max(0, p.endsAt - Date.now()) : p.leftMs != null ? Math.min(p.leftMs, len) : len;
+  const set = (patch) => setP((q) => ({ ...q, ...patch }));
+
+  useEffect(() => {
+    if (!p.running) return;
+    const endsAt = p.endsAt;
+    const id = setInterval(() => {
+      if (Date.now() < endsAt) return tick((x) => x + 1);
+      clearInterval(id);
+      const fresh = Date.now() - endsAt < 5000; // don't chime for a timer that ran out while the page was closed
+      if (fresh && p.sound) chime();
+      if (fresh && "Notification" in window && Notification.permission === "granted") {
+        try { new Notification(p.mode === "focus" ? "Focus done. Take a break." : "Break's over. Back to it.", { silent: true }); } catch (e) {}
+      }
+      setP((q) => (q.running && q.endsAt === endsAt ? pomoAdvance(q, { counted: true }) : q));
+    }, 250);
+    return () => clearInterval(id);
+  }, [p.running, p.endsAt]);
+
+  // Countdown in the tab title, so you can see it from another tab.
+  const baseTitle = useRef(document.title);
+  useEffect(() => {
+    document.title = p.running ? `${mmss(left)} · ${POMO_LABEL[p.mode]} — RealityCheck` : baseTitle.current;
+  });
+  useEffect(() => () => { document.title = baseTitle.current; }, []);
+
+  const start = () => {
+    if ("Notification" in window && Notification.permission === "default") { try { Notification.requestPermission(); } catch (e) {} }
+    set({ running: true, endsAt: Date.now() + left, leftMs: null });
+  };
+  const pause = () => set({ running: false, endsAt: null, leftMs: left });
+  const reset = () => set({ running: false, endsAt: null, leftMs: null });
+  const switchTo = (mode) => set({ mode, running: false, endsAt: null, leftMs: null });
+  const skip = () => setP((q) => pomoAdvance(q, { counted: false }));
+
+  const todayLog = p.log[dateKey(new Date())] || { n: 0, min: 0 };
+  const every = Math.max(1, Number(p.longEvery) || 4);
+  const doneInCycle = p.streak % every;
+  // What the calendar says you should be doing right now (or next, today)
+  const segs = tasks.filter((t) => t.fits).flatMap((t) => t.segments.map((s) => ({ ...s, title: t.title })));
+  const cur = segs.find((s) => s.kind !== "break" && s.start <= nowAbs && nowAbs < s.end);
+  const next = !cur && segs.filter((s) => s.kind !== "break" && s.start > nowAbs && dayOfAbs(s.start) === dayOfAbs(nowAbs))
+    .sort((a, b) => a.start - b.start)[0];
+
+  const R = 54, C = 2 * Math.PI * R, frac = 1 - left / len;
+  return (
+    <div className={"card pomo " + p.mode}>
+      <h2>Pomodoro <span className="tag">{POMO_LABEL[p.mode]}</span></h2>
+      <div className="seg-ctrl pomo-modes" role="group" aria-label="Timer mode">
+        {Object.keys(POMO_LABEL).map((m) => (
+          <button key={m} type="button" aria-pressed={p.mode === m} onClick={() => switchTo(m)}>{POMO_LABEL[m]}</button>
+        ))}
+      </div>
+      <div className="pomo-body">
+        <svg className="pomo-ring" viewBox="0 0 128 128" aria-hidden="true">
+          <circle cx="64" cy="64" r={R} className="track" />
+          <circle cx="64" cy="64" r={R} className="fill" strokeDasharray={C} strokeDashoffset={C * (1 - frac)} transform="rotate(-90 64 64)" />
+        </svg>
+        <div className="pomo-time mono" role="timer" aria-label={`${POMO_LABEL[p.mode]}, ${mmss(left)} left`}>{mmss(left)}</div>
+      </div>
+      <div className="pomo-dots" aria-label={`${doneInCycle} of ${every} focus sessions before a long break`}>
+        {Array.from({ length: every }, (_, i) => <i key={i} className={i < doneInCycle ? "on" : ""} />)}
+        <span>{todayLog.n ? `${todayLog.n} done today · ${fmtDur(todayLog.min)}` : "none done today yet"}</span>
+      </div>
+      <div className="pomo-actions">
+        {p.running
+          ? <button className="btn" type="button" onClick={pause}>Pause</button>
+          : <button className="btn" type="button" onClick={start}>{left < len ? "Resume" : "Start"}</button>}
+        <button className="btn ghost" type="button" onClick={reset} disabled={left === len && !p.running}>Reset</button>
+        <button className="btn ghost" type="button" onClick={skip} title={p.mode === "focus" ? "Skip to a break (won't count)" : "Skip the break"}>Skip</button>
+      </div>
+      {(cur || next) && (
+        <p className="pomo-now">
+          {cur ? <>On your calendar now: <b>{cur.title}</b> · {KIND_LABEL[cur.kind].toLowerCase()} until {fmt(cur.end - dayOfAbs(cur.end) * DAY_MIN)}</>
+            : <>Next up: <b>{next.title}</b> at {fmt(next.start - dayOfAbs(next.start) * DAY_MIN)}</>}
+        </p>
+      )}
+      <button className="linkbtn" type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{open ? "Hide settings" : "Timer settings"}</button>
+      {open && (
+        <div className="stack pomo-settings">
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {POMO_PRESETS.map((pr) => (
+              <button key={pr.label} type="button" className="btn ghost small"
+                aria-pressed={p.focusMin === pr.focusMin && p.shortMin === pr.shortMin && p.longMin === pr.longMin}
+                onClick={() => set({ focusMin: pr.focusMin, shortMin: pr.shortMin, longMin: pr.longMin, leftMs: p.running ? p.leftMs : null })}>{pr.label}</button>
+            ))}
+          </div>
+          <div className="pomo-grid">
+            {[["focusMin", "Focus"], ["shortMin", "Short break"], ["longMin", "Long break"], ["longEvery", "Long break every"]].map(([k, label]) => (
+              <label key={k} className="field">{label}{k === "longEvery" ? "" : " (min)"}
+                <input type="number" min="1" max={k === "longEvery" ? 12 : 180} value={p[k]}
+                  onChange={(e) => set({ [k]: e.target.value === "" ? "" : Number(e.target.value), ...(p.running ? {} : { leftMs: null }) })} />
+              </label>
+            ))}
+          </div>
+          <label className="check"><input type="checkbox" checked={!!p.sound} onChange={(e) => set({ sound: e.target.checked })} /> Chime when time's up</label>
+          <label className="check"><input type="checkbox" checked={!!p.autoStart} onChange={(e) => set({ autoStart: e.target.checked })} /> Start the next one automatically</label>
+        </div>
+      )}
     </div>
   );
 }
@@ -767,7 +949,8 @@ function App() {
   const [tasks, setTasks] = useStoredState(TASKS_KEY, [], migrateTasks);
   const [settings, setSettings] = useStoredState(SETTINGS_KEY,
     { windDown: "21:00", planFrom: "", lookahead: 7, dailyCapH: 4, hourPx: ZOOM_DEFAULT, view: "week" });
-  const [cram] = useStoredState(CRAM_KEY, { active: false, exams: [] });
+  const [cram, setCram] = useStoredState(CRAM_KEY, { active: false, exams: [] });
+  const [cramMsg, setCramMsg] = useState(null);
   const [draft, setDraft] = useState(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const now = useNow();
@@ -811,6 +994,37 @@ function App() {
       { dailyCap, capLeft: capLeftFrom(doneHw, hwCap), cram: cramOpt });
     setTasks((ts) => ts.map((t) => (plan[t.id] ? { ...t, ...plan[t.id] } : t)));
   };
+
+  /* While Cram mode is on, a change to your fixed events re-runs the Cram plan (same as hitting Apply there):
+     busy days lose study time, lighter days pick it up, homework is re-planned around it. */
+  const replanCram = (nextEvents, what) => {
+    const P = cramPlan({ cram, events: nextEvents, tasks, settings, nowAbs });
+    const before = studyByDay(tasks), after = studyByDay(P.nextTasks);
+    setEvents(P.nextEvents);
+    setTasks(P.nextTasks);
+    setCram((c) => ({ ...c, hwCapByDay: P.alloc.hwCapByDay, appliedSig: P.sig }));
+    const moved = [...new Set([...Object.keys(before), ...Object.keys(after)].map(Number))].sort((a, b) => a - b)
+      .map((d) => ({ d, delta: (after[d] || 0) - (before[d] || 0) })).filter((x) => Math.abs(x.delta) >= 5);
+    const missing = P.alloc.lost - P.alloc.recovered;
+    setCramMsg({ at: Date.now(), what, missing,
+      moved: moved.map(({ d, delta }) => `${d === todayN ? "today" : fmtDate(keyOf(d), { weekday: "short" })} ${delta > 0 ? "+" : "−"}${fmtDur(Math.abs(delta))}`) });
+  };
+  const changeEvents = (next, what) => (cram.active ? replanCram(next, what) : setEvents(next));
+  const dayName = (date) => (date === now.today ? "today" : fmtDate(date, { weekday: "short", month: "short", day: "numeric" }));
+  const addEvent = (ev) => changeEvents([...events, ev], `Added ${ev.title} (${dayName(ev.date)})`);
+  const deleteEvent = (id) => {
+    const ev = events.find((e) => e.id === id);
+    if (!ev) return;
+    if (ev.cramExamId && cram.active) {
+      return setCramMsg({ at: Date.now(), what: `${ev.title} comes from Cram mode`, note: "Remove or move the exam there.", moved: [], missing: 0 });
+    }
+    changeEvents(events.filter((e) => e.id !== id), `Removed ${ev.title} (${dayName(ev.date)})`);
+  };
+  useEffect(() => {
+    if (!cramMsg) return;
+    const t = setTimeout(() => setCramMsg(null), 12000);
+    return () => clearTimeout(t);
+  }, [cramMsg]);
 
   /* ----- Calendar navigation ----- */
   const dates = view === "day" ? [anchor] : view === "week" ? Array.from({ length: 7 }, (_, i) => addDays(weekStart(anchor), i)) : [];
@@ -877,6 +1091,7 @@ function App() {
           <p>How long will this <em>actually</em> take me, and what's left of my week?</p>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <a className="btn ghost grades-link" href="grades.html">Grade check</a>
           <a className="btn cram-link" href="cram.html">Cram mode{cram.active ? " · on" : ""} →</a>
           <div className="date-pill">{todayLabel}</div>
         </div>
@@ -885,11 +1100,12 @@ function App() {
       <div className="layout">
         <aside className="stack">
           <DayStats events={events} tasks={tasks} date={view === "day" ? anchor : now.today} now={now} />
-          <AddEventForm onAdd={(ev) => setEvents((es) => [...es, ev])} draft={draft} defaultDate={view === "day" ? anchor : now.today} />
+          <Pomodoro tasks={tasks} nowAbs={nowAbs} />
+          <AddEventForm onAdd={addEvent} draft={draft} defaultDate={view === "day" ? anchor : now.today} />
           <TaskEstimator onAdd={addTask} todayN={todayN} lookahead={lookahead} />
           <TaskList tasks={tasks} cram={cram} absEvents={absEvents} nowAbs={nowAbs} todayN={todayN}
             settings={{ ...settings, lookahead: settings.lookahead, dailyCapH: settings.dailyCapH }} onSettings={updateSettings}
-            onOptimize={optimize} onRemove={(id) => setTasks((ts) => ts.filter((t) => t.id !== id))} onJump={openDay} />
+            onOptimize={cram.active ? () => replanCram(events, "Re-planned with Cram mode") : optimize} onRemove={(id) => setTasks((ts) => ts.filter((t) => t.id !== id))} onJump={openDay} />
         </aside>
 
         <section className="card tl-card">
@@ -928,7 +1144,7 @@ function App() {
               </div>
             )}
             <div style={{ display: "flex", gap: 8 }}>
-              <button className="btn ghost small" onClick={() => setEvents((es) => [...es.filter((e) => e.date !== now.today), ...sampleFor(now.today)])}>Load sample day</button>
+              <button className="btn ghost small" onClick={() => changeEvents([...events.filter((e) => e.date !== now.today), ...sampleFor(now.today)], "Loaded the sample day")}>Load sample day</button>
               <button className="btn ghost small" onClick={() => (confirmClear ? (setEvents([]), setTasks([]), setConfirmClear(false)) : setConfirmClear(true))}>
                 {confirmClear ? "Click again to clear everything" : "Clear all"}
               </button>
@@ -939,12 +1155,22 @@ function App() {
           ) : (
             <TimeGrid dates={dates} now={now} hourPx={hourPx} windDown={windDown} events={events} tasks={tasks} nowAbs={nowAbs}
               scrollRef={scrollRef} bodyRef={bodyRef}
-              onDelete={(id) => setEvents((es) => es.filter((e) => e.id !== id))}
+              onDelete={deleteEvent}
               onOpenDay={openDay}
               onPickSlot={(date, m) => setDraft({ date, m, at: Date.now() /* new object so clicking the same slot re-fills */ })} />
           )}
         </section>
       </div>
+      {cramMsg && (
+        <div className="toast" role="status">
+          <div>
+            <b>{cramMsg.what}.</b>{" "}
+            {cramMsg.note || (cramMsg.moved.length ? `Cram plan updated: ${cramMsg.moved.join(", ")}.` : "Cram plan checked: study time didn't need to move.")}
+            {cramMsg.missing > 0 && <span className="warn"> {fmtDur(cramMsg.missing)} of study no longer fits. <a href="cram.html">Fix it in Cram mode →</a></span>}
+          </div>
+          <button className="x" aria-label="Dismiss" onClick={() => setCramMsg(null)}>×</button>
+        </div>
+      )}
     </div>
   );
 }

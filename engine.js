@@ -312,14 +312,33 @@ const suggestedDays = (c) => COOKED_DAYS[clamp(Math.round(c), 1, 5) - 1];
 const urgency = (daysLeft) => 1 + 1.5 / (daysLeft + 1);
 const STUDY_MIN_BLOCK = 20; // shares smaller than this get folded into the other exams that day
 
+/* Work minutes you can realistically get out of [a, b] around fixed `busy` intervals:
+ * 10 min breathing room around each event, gaps too short for a real session don't count,
+ * and every hour loses 10 min to a break (the scheduler's 50/10 rhythm). */
+function usableMinutes(busy, a, b) {
+  if (b <= a) return 0;
+  return freeGaps(busy, a, b, SCHED.breather).reduce((s, [x, y]) => {
+    const len = y - x;
+    return len < SCHED.minChunk + 5 ? s : s + len - Math.floor(len / 60) * SCHED.breakLen;
+  }, 0);
+}
+
 /* Split each day's study budget across the exams in their study window.
- * opts: { fromAbs, dayStart, windDown, dailyMin (total work minutes per cram day), hwShare 0..1 }
- * Returns { days: [{ day, budget, hw, alloc: { examId: minutes } }], totals: { examId: minutes }, hwCapByDay } */
+ * opts: { fromAbs, dayStart, windDown, dailyMin (total work minutes per cram day), hwShare 0..1,
+ *         busy: [[start, end], ...] fixed events (practices, shifts, exams),
+ *         stretchMin: how far over dailyMin a day may go to make up time that fixed events ate }
+ * Big fixed blocks shrink that day's budget (homework share shrinks with it). The study time an exam
+ * loses is made up on its other study days with room, earliest first, up to stretchMin extra per day.
+ * Returns { days: [{ day, budget, hw, alloc, ideal, base, extra, blocked, free }], totals, hwCapByDay,
+ *           byExam: { examId: { lost, recovered } }, lost, recovered } */
 function cramAllocate(exams, opts) {
   const valid = exams.filter((e) => Number.isFinite(e.at) && e.at > opts.fromAbs);
-  const out = { days: [], totals: {}, hwCapByDay: {} };
-  valid.forEach((e) => { out.totals[e.id] = 0; });
+  const out = { days: [], totals: {}, hwCapByDay: {}, byExam: {}, lost: 0, recovered: 0 };
+  valid.forEach((e) => { out.totals[e.id] = 0; out.byExam[e.id] = { lost: 0, recovered: 0 }; });
   if (!valid.length) return out;
+  const busy = opts.busy || [];
+  const stretch = Math.max(0, Number(opts.stretchMin) || 0);
+  const r5 = (m) => Math.max(0, Math.floor(m / 5) * 5);
   const first = dayOfAbs(opts.fromAbs);
   const last = Math.max(...valid.map((e) => dayOfAbs(e.at)));
   for (let d = first; d <= last; d++) {
@@ -332,17 +351,53 @@ function cramAllocate(exams, opts) {
       return d < ed || e.at - 30 - winStart >= 60; // exam day only counts if there's an hour before it
     });
     if (!active.length) continue;
-    // Time actually usable for study that day: the window, cut off before the earliest exam that day.
-    const examToday = active.filter((e) => dayOfAbs(e.at) === d).map((e) => e.at - 30);
-    const usable = Math.max(0, Math.min(winEnd, ...examToday) - winStart);
-    const budget = Math.min(opts.dailyMin, winEnd - winStart);
-    const hw = Math.round((budget * opts.hwShare) / 5) * 5;
-    let pool = Math.min(budget - hw, usable);
-    let alloc = shareOut(active, pool, d);
-    out.days.push({ day: d, budget, hw, alloc });
-    out.hwCapByDay[d] = hw;
-    Object.entries(alloc).forEach(([id, m]) => { out.totals[id] += m; });
+    // Study stops 30 min before the earliest exam that day.
+    const studyEnd = Math.min(winEnd, ...active.filter((e) => dayOfAbs(e.at) === d).map((e) => e.at - 30));
+    // What the day would give if nothing else were on it...
+    const budget = Math.min(opts.dailyMin, usableMinutes([], winStart, winEnd));
+    const idealHw = r5(Math.round(budget * opts.hwShare));
+    const ideal = shareOut(active, r5(Math.min(budget - idealHw, usableMinutes([], winStart, studyEnd))), d);
+    // ...and what it really gives around your fixed events.
+    const free = usableMinutes(busy, winStart, winEnd);
+    const freeStudy = usableMinutes(busy, winStart, studyEnd);
+    const real = Math.min(budget, free);
+    const hw = r5(Math.round(real * opts.hwShare));
+    const alloc = shareOut(active, r5(Math.min(real - hw, freeStudy)), d);
+    out.days.push({ day: d, budget, hw, alloc, ideal, base: Object.assign({}, alloc), extra: {},
+      blocked: budget - real, free, freeStudy, active: active.map((e) => e.id) });
   }
+
+  // Make up what fixed events took, on the exam's other study days (soonest exam first).
+  const used = (x) => x.hw + Object.values(x.alloc).reduce((a, b) => a + b, 0);
+  const room = (x) => Math.min(x.budget + stretch, x.free) - used(x);
+  const studyRoom = (x) => x.freeStudy - Object.values(x.alloc).reduce((a, b) => a + b, 0);
+  valid.slice().sort((a, b) => a.at - b.at).forEach((e) => {
+    const mine = out.days.filter((x) => x.active.includes(e.id));
+    let owed = mine.reduce((s, x) => s + Math.max(0, (x.ideal[e.id] || 0) - (x.alloc[e.id] || 0)), 0);
+    out.byExam[e.id].lost = owed;
+    out.lost += owed;
+    while (owed > 0) {
+      // A first block on a day has to be a real session; after that, top up 15 min at a time.
+      const amount = (x) => ((x.alloc[e.id] || 0) >= STUDY_MIN_BLOCK ? Math.min(15, owed) : Math.min(30, owed));
+      const ok = mine.filter((x) => {
+        const a = amount(x);
+        return (x.alloc[e.id] || 0) + a >= STUDY_MIN_BLOCK && room(x) >= a && studyRoom(x) >= a;
+      });
+      if (!ok.length) break;
+      const pick = ok.reduce((best, x) => (room(x) > room(best) ? x : best)); // most room; ties -> earliest
+      const a = amount(pick);
+      pick.alloc[e.id] = (pick.alloc[e.id] || 0) + a;
+      pick.extra[e.id] = (pick.extra[e.id] || 0) + a;
+      owed -= a;
+      out.byExam[e.id].recovered += a;
+      out.recovered += a;
+    }
+  });
+
+  out.days.forEach((x) => {
+    out.hwCapByDay[x.day] = x.hw;
+    Object.entries(x.alloc).forEach(([id, m]) => { out.totals[id] += m; });
+  });
   return out;
 }
 
@@ -388,8 +443,148 @@ function cramStudyTasks(exams, allocation) {
   return tasks;
 }
 
+/* The whole Cram plan from saved state. Cram mode previews it; Apply (and the calendar, whenever a fixed event
+ * changes while Cram mode is on) writes `nextEvents`, `nextTasks` and `hwCapByDay`/`sig` back.
+ *   cram: the Cram settings + exams, events/tasks: calendar data, settings: { windDown, planFrom, lookahead, dailyCapH } */
+function cramPlan({ cram, events, tasks, settings, nowAbs }) {
+  const fromAbs = absFromLocal(settings.planFrom) ?? Math.ceil(nowAbs / 5) * 5;
+  const windDown = Math.min(timeOr(settings.windDown, 21 * 60), DAY_END);
+  const dailyCap = Number(settings.dailyCapH) > 0 ? Number(settings.dailyCapH) * 60 : Infinity;
+  const lookahead = clamp(Math.round(Number(settings.lookahead) || 7), 1, 60);
+  const dailyHours = clamp(Number(cram.dailyHours) || 6, 1, 14);
+  const hwShare = clamp(Number(cram.hwShare) || 0, 0, 0.8);
+  const effort = clamp(Number(cram.effort) || 1, 0.5, 1);
+  const stretchH = clamp(Number(cram.stretchH ?? 1.5) || 0, 0, 4);
+
+  const exams = (cram.exams || []).map((e) => Object.assign({}, e, { at: absFromLocal(e.when), days: e.days == null ? suggestedDays(e.cooked) : e.days }));
+  const valid = exams.filter((e) => e.name.trim() && e.at != null && e.at > nowAbs);
+  const examEvents = valid.map((e) => {
+    const d = dayOfAbs(e.at), start = e.at - d * DAY_MIN;
+    return { id: "exam:" + e.id, cramExamId: e.id, title: `${e.name.trim()} exam`, date: keyOf(d), start,
+      end: Math.min(start + (Number(e.length) || 90), DAY_MIN), color: e.color };
+  });
+  const otherEvents = events.filter((e) => !e.cramExamId);
+  const fixed = otherEvents.concat(examEvents).map(eventAbs).map((e) => [e.start, e.end]);
+  const alloc = cramAllocate(valid, { fromAbs, dayStart: DAY_START, windDown, dailyMin: dailyHours * 60, hwShare,
+    busy: fixed, stretchMin: stretchH * 60 });
+  const study = cramStudyTasks(valid, alloc);
+
+  const isDone = (t) => t.fits && t.segments.length && t.segments[t.segments.length - 1].end <= nowAbs;
+  const hwTasks = tasks.filter((t) => !t.study);
+  const todoHw = hwTasks.filter((t) => !isDone(t));
+  const doneSegs = hwTasks.filter(isDone).flatMap((t) => t.segments);
+  const lastDay = Math.max(dayOfAbs(fromAbs), ...valid.map((e) => dayOfAbs(e.at)));
+  const windows = planningWindows(fromAbs, Math.max(lookahead, lastDay - dayOfAbs(fromAbs) + 1), DAY_START, windDown);
+  const runPlan = (withCram) => {
+    const cramOpt = withCram ? { hwCapByDay: alloc.hwCapByDay, effort } : null;
+    const hwCap = withCram ? (d) => (d in alloc.hwCapByDay ? alloc.hwCapByDay[d] : dailyCap) : dailyCap;
+    return planAll(withCram ? todoHw.concat(study) : todoHw, fixed.concat(doneSegs.map((s) => [s.start, s.end])), windows,
+      { dailyCap, capLeft: capLeftFrom(doneSegs, hwCap), cram: cramOpt });
+  };
+  const plan = runPlan(true);
+  const placedStudy = study.map((t) => Object.assign({}, t, plan[t.id]));
+  const withPlan = (p) => (t) => (p[t.id] ? Object.assign({}, t, p[t.id]) : t);
+
+  return {
+    fromAbs, windDown, dailyCap, dailyHours, hwShare, effort, stretchH,
+    valid, examEvents, otherEvents, fixed, alloc, study, hwTasks, todoHw, plan, placedStudy, runPlan,
+    // Fixed events are part of the plan, so a new practice makes an applied plan out of date.
+    sig: JSON.stringify({ exams: cram.exams, dailyHours, hwShare, effort, stretchH, fixed }),
+    nextEvents: otherEvents.concat(examEvents),
+    nextTasks: hwTasks.map(withPlan(plan)).concat(placedStudy),
+    offTasks: () => hwTasks.map(withPlan(runPlan(false))),
+  };
+}
+
+/* Study minutes per day from a task list, e.g. to say what a re-plan moved. */
+function studyByDay(tasks) {
+  const out = {};
+  tasks.filter((t) => t.study && t.fits).forEach((t) => t.segments.forEach((s) => {
+    if (s.kind === "break") return;
+    const d = dayOfAbs(s.start);
+    out[d] = (out[d] || 0) + s.end - s.start;
+  }));
+  return out;
+}
+
+/* ============ 5. Grades ============
+ * A class: { name, target: "B", scale: [["A", 90], ...], categories: [{ name, weight, items: [{ name, score, outOf }] }] }
+ * An item with a blank score is still to come. A category with no items counts as entirely still to come (e.g. "Final 30%").
+ * Weights don't have to add to 100: they're normalized. */
+const GRADES_KEY = "realitycheck.grades.v1";
+const DEFAULT_SCALE = [["A", 90], ["B", 80], ["C", 70], ["D", 60]];
+const hasScore = (i) => i.score !== "" && i.score != null && Number.isFinite(Number(i.score));
+
+function letterFor(pct, scale) {
+  const s = (scale || DEFAULT_SCALE).slice().sort((a, b) => b[1] - a[1]);
+  const hit = s.find(([, cut]) => pct >= cut);
+  return hit ? hit[0] : "F";
+}
+
+/* Returns {
+ *   current:  average so far on graded work (0..100, weighted), or null if nothing graded
+ *   banked:   points already locked into the final grade (0..100 of the whole class)
+ *   pending:  share of the final grade still to come (0..100)
+ *   need:     { letter: % average needed on everything left } for each letter in the scale
+ *   targetNeed, floor (grade if you get 0 on the rest), ceiling (grade if you get 100), cooked 1..5, verdict
+ *   cats:     per category { name, weight (normalized %), avg, done, pending } } */
+function gradeSummary(cls) {
+  const scale = cls.scale && cls.scale.length ? cls.scale : DEFAULT_SCALE;
+  const raw = (cls.categories || []).map((c) => {
+    const w = Math.max(0, Number(c.weight) || 0);
+    const items = (c.items || []).filter((i) => Number(i.outOf) > 0);
+    const graded = items.filter(hasScore);
+    const possible = items.reduce((s, i) => s + Number(i.outOf), 0);
+    const gp = graded.reduce((s, i) => s + Number(i.outOf), 0);
+    const ge = graded.reduce((s, i) => s + Number(i.score), 0);
+    const doneFrac = possible ? gp / possible : 0;
+    return { id: c.id, name: c.name, w, avg: gp ? (ge / gp) * 100 : null,
+      doneW: w * doneFrac, earnedW: possible ? (w * ge) / possible : 0, pendingW: w * (1 - doneFrac) };
+  });
+  const total = raw.reduce((s, c) => s + c.w, 0);
+  if (!total) return null;
+  const doneW = raw.reduce((s, c) => s + c.doneW, 0);
+  const earnedW = raw.reduce((s, c) => s + c.earnedW, 0);
+  const banked = (earnedW / total) * 100;
+  const pending = (raw.reduce((s, c) => s + c.pendingW, 0) / total) * 100;
+  const current = doneW > 0 ? (earnedW / doneW) * 100 : null;
+  const needFor = (cut) => (pending > 0.01 ? ((cut - banked) / pending) * 100 : banked >= cut ? -Infinity : Infinity);
+  const need = Object.fromEntries(scale.map(([l, cut]) => [l, needFor(Number(cut))]));
+  const targetCut = Number((scale.find(([l]) => l === cls.target) || scale[0])[1]);
+  const targetNeed = needFor(targetCut);
+
+  // How cooked are you? Compare what you need with how you've been doing.
+  const gap = targetNeed - (current ?? 80);
+  let cooked = targetNeed <= 0 ? 1 : gap <= -5 ? 1 : gap <= 3 ? 2 : gap <= 10 ? 3 : 4;
+  if (targetNeed > 95) cooked = Math.max(cooked, 4);
+  if (targetNeed > 100) cooked = 5;
+  const verdict = [
+    targetNeed <= 0 ? "It's in the bag. Even a zero on the rest keeps it." : "Comfortable. Keep showing up.",
+    "On track. Keep doing exactly what you're doing.",
+    "Step it up. You need to beat your average so far.",
+    "Lock in. You need your best work from here on.",
+    "Not possible anymore. Time to save the next letter down.",
+  ][cooked - 1];
+  return {
+    current, banked, pending, need, targetNeed, targetCut, cooked, verdict, scale,
+    floor: banked, ceiling: banked + pending,
+    cats: raw.map((c) => ({ id: c.id, name: c.name, weight: (c.w / total) * 100, avg: c.avg,
+      done: (c.doneW / total) * 100, pending: (c.pendingW / total) * 100 })),
+  };
+}
+
+/* The class a Cram exam belongs to: "MA 261 Midterm 2" matches a class named "MA 261" (spaces and case ignored). */
+const normName = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+function classForExam(classes, examName) {
+  const e = normName(examName);
+  if (!e) return null;
+  return (classes || []).filter((c) => normName(c.name) && (e.includes(normName(c.name)) || normName(c.name).includes(e)))
+    .sort((a, b) => normName(b.name).length - normName(a.name).length)[0] || null;
+}
+
 if (typeof module !== "undefined") module.exports = {
+  gradeSummary, letterFor, classForExam,
   DAY_MIN, DAY_START, DAY_END, dayNum, keyOf, dateKey, absFromLocal, localFromAbs, fmtWhen,
   estimate, freeGaps, planningWindows, clipWindows, capLeftFrom, placeTask, planTasks, planAll, trimForCram,
-  deadlineStatus, countSessions, cramAllocate, cramStudyTasks, cookedWeight, suggestedDays, migrateTasks,
+  deadlineStatus, countSessions, cramAllocate, usableMinutes, cramStudyTasks, cookedWeight, suggestedDays, migrateTasks,
 };
