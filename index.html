@@ -236,7 +236,18 @@
   .todo-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
   .todo-head h2 { margin: 0; }
   .todo-tools { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-  .todo-tools .linkbtn { align-self: center; margin-left: 2px; }
+  .ai-chip { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 5px 11px; font-size: 13px; font-weight: 600; cursor: pointer; line-height: 1.2; }
+  .ai-chip.off { border: 1.5px dashed #4b3fa8; background: #f1effb; color: #4b3fa8; }
+  .ai-chip.off:hover { background: #e6e2f8; }
+  .ai-chip.on { border: 1px solid #bfdcc6; background: var(--sage-soft); color: #2f5a3b; }
+  .ai-chip.on i { width: 8px; height: 8px; border-radius: 50%; background: var(--sage); }
+  span.ai-chip { cursor: default; }
+  .ai-explain { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  @media (max-width: 560px) { .ai-explain { grid-template-columns: 1fr; } }
+  .ai-explain div { background: #fff; border-radius: 10px; padding: 9px 11px; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+  .ai-explain b { color: #4b3fa8; font-weight: 600; }
+  .ai-explain span { color: var(--muted); }
+  .ai-steps { margin: 0; padding-left: 20px; font-size: 13.5px; display: flex; flex-direction: column; gap: 3px; }
   .ai-btn { background: #4b3fa8; border-color: #4b3fa8; }
   .quick { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
   .parse-preview { margin: -4px 0 0; font-size: 12.5px; color: var(--muted); }
@@ -980,27 +991,47 @@ function dueGroup(td, nowAbs, todayN) {
 const GROUPS = [["overdue", "Overdue"], ["today", "Today"], ["tomorrow", "Tomorrow"], ["week", "This week"], ["later", "Later"], ["someday", "No deadline"]];
 const KIND_TAG = { todo: "to-do", study: "study → Cram mode", exam: "exam → Cram mode", event: "event → calendar" };
 
-function AiKeyPanel({ ai, setAi, onClose }) {
+/* Connecting Claude: a one-time setup. `reason` says which AI button sent you here, so we can pick up where you left off. */
+const AI_REASON = {
+  dump: "Brain dump needs AI connected first.",
+  suggest: "“What should I do?” needs AI connected first.",
+};
+function AiKeyPanel({ ai, reason, onSave, onRemove, onClose }) {
   const [draft, setDraft] = useState("");
+  const key = draft.trim();
+  const looksWrong = key && !key.startsWith("sk-ant-");
   return (
-    <div className="ai-panel">
-      <b>Turn on AI</b>
-      <p className="note" style={{ margin: 0 }}>
-        AI uses Claude with your own Anthropic API key (get one at console.anthropic.com). It's saved only in this browser and is
-        sent only to Anthropic, only when you press an AI button. Anyone who uses this browser could read it, so don't save it on a shared computer.
-      </p>
+    <div className="ai-panel ai-setup">
+      <div className="ai-row" style={{ justifyContent: "space-between" }}>
+        <b>{ai.apiKey ? "AI is on" : reason ? AI_REASON[reason] : "Set up AI"}</b>
+        <button className="x" type="button" aria-label="Close" onClick={onClose}>×</button>
+      </div>
+      <div className="ai-explain">
+        <div><b>✦ Brain dump</b><span>Paste messy notes. Claude sorts them into to-dos, exams and events.</span></div>
+        <div><b>✦ What should I do?</b><span>Claude looks at your to-dos, calendar, exams and grades and tells you what to do next, with one-click fixes.</span></div>
+      </div>
       {ai.apiKey ? (
         <div className="ai-row">
-          <span className="mono">{ai.apiKey.slice(0, 10)}…{ai.apiKey.slice(-4)}</span>
-          <button className="btn ghost small" type="button" onClick={() => setAi({ apiKey: "" })}>Remove key</button>
+          <span className="ai-chip on" aria-hidden="true"><i />Key saved</span>
+          <span className="mono note" style={{ margin: 0 }}>{ai.apiKey.slice(0, 10)}…{ai.apiKey.slice(-4)}</span>
+          <span style={{ flex: 1 }} />
+          <button className="btn ghost small" type="button" onClick={onRemove}>Remove key</button>
           <button className="btn small" type="button" onClick={onClose}>Done</button>
         </div>
       ) : (
-        <form className="ai-row" onSubmit={(e) => { e.preventDefault(); if (draft.trim()) { setAi({ apiKey: draft.trim() }); setDraft(""); onClose(); } }}>
-          <input type="password" placeholder="sk-ant-…" value={draft} autoComplete="off" aria-label="Anthropic API key" onChange={(e) => setDraft(e.target.value)} />
-          <button className="btn small" type="submit" disabled={!draft.trim()}>Save</button>
-          <button className="btn ghost small" type="button" onClick={onClose}>Cancel</button>
-        </form>
+        <>
+          <ol className="ai-steps">
+            <li>Get an API key at <b>console.anthropic.com</b> → Settings → API keys. It starts with <span className="mono">sk-ant-</span>.</li>
+            <li>Make sure the account has credits (Console → Billing). Each AI request costs a few cents.</li>
+            <li>Paste it here:</li>
+          </ol>
+          <form className="ai-row" onSubmit={(e) => { e.preventDefault(); if (key) { onSave(key); setDraft(""); } }}>
+            <input type="password" placeholder="sk-ant-…" value={draft} autoComplete="off" aria-label="Anthropic API key" autoFocus onChange={(e) => setDraft(e.target.value)} />
+            <button className="btn small ai-btn" type="submit" disabled={!key}>{reason ? "Save and continue" : "Save"}</button>
+          </form>
+          {looksWrong && <p className="error" style={{ margin: 0 }}>That doesn't look like an API key (those start with sk-ant-). A workspace or org ID won't work.</p>}
+          <p className="note" style={{ margin: 0 }}>The key is saved only in this browser and sent only to Anthropic, only when you press an AI button. Don't save it on a shared computer.</p>
+        </>
       )}
     </div>
   );
@@ -1009,7 +1040,7 @@ function AiKeyPanel({ ai, setAi, onClose }) {
 function TodoPanel({ todos, setTodos, tasks, nowAbs, todayN, onSchedule, onUnschedule, onJump, onImport, onSetCooked, onApplyCram, onEdit, cram, snapshot }) {
   const [ai, setAi] = useStoredState(AI_STORE_KEY, { apiKey: "" });
   const [text, setText] = useState("");
-  const [showKey, setShowKey] = useState(false);
+  const [aiPanel, setAiPanel] = useState(null); // null, or { reason: null | "dump" | "suggest" }
   const [dumpOpen, setDumpOpen] = useState(false);
   const [dump, setDump] = useState("");
   const [dumpRes, setDumpRes] = useState(null);   // { items: [{...item, pick}], message }
@@ -1053,12 +1084,15 @@ function TodoPanel({ todos, setTodos, tasks, nowAbs, todayN, onSchedule, onUnsch
   const unplanned = todos.filter((td) => !td.done && !taskFor(td, tasks));
   const planAll = () => onSchedule(unplanned);
 
-  const needKey = () => { if (ai.apiKey) return false; setShowKey(true); return true; };
-  const runDump = async () => {
-    if (needKey() || !dump.trim()) return;
+  // The key comes from storage, or straight from the setup panel when it just sent you on to the feature.
+  const keyOr = (k) => (typeof k === "string" ? k : ai.apiKey);
+  const runDump = async (k) => {
+    const apiKey = keyOr(k);
+    if (!dump.trim()) return;
+    if (!apiKey) return setAiPanel({ reason: "dump" });
     setBusy("dump"); setError("");
     try {
-      const r = await aiBrainDump(ai.apiKey, dump, nowAbs, { exams: (cram.exams || []).map((e) => ({ name: e.name, when: e.when })) });
+      const r = await aiBrainDump(apiKey, dump, nowAbs, { exams: (cram.exams || []).map((e) => ({ name: e.name, when: e.when })) });
       setDumpRes({ message: r.message, items: r.items.map((it) => ({ ...it, pick: true })) });
     } catch (err) { setError(err.message); }
     setBusy("");
@@ -1067,11 +1101,19 @@ function TodoPanel({ todos, setTodos, tasks, nowAbs, todayN, onSchedule, onUnsch
     onImport(dumpRes.items.filter((it) => it.pick), { planStudy });
     setDumpRes(null); setDump(""); setDumpOpen(false);
   };
-  const runSuggest = async () => {
-    if (needKey()) return;
+  const runSuggest = async (k) => {
+    const apiKey = keyOr(k);
+    if (!apiKey) return setAiPanel({ reason: "suggest" });
     setBusy("suggest"); setError("");
-    try { setSugg(await aiSuggest(ai.apiKey, { nowAbs, snapshot: snapshot() })); } catch (err) { setError(err.message); }
+    try { setSugg(await aiSuggest(apiKey, { nowAbs, snapshot: snapshot() })); } catch (err) { setError(err.message); }
     setBusy("");
+  };
+  const saveKey = (key) => {
+    const reason = aiPanel && aiPanel.reason;
+    setAi({ apiKey: key });
+    setAiPanel(null); setError("");
+    if (reason === "suggest") runSuggest(key);
+    if (reason === "dump") runDump(key);
   };
   const fromAi = (list) => list.map((x) => addTodo({ title: x.title, cls: x.class_name, due: absFromLocal(x.when), minutes: x.minutes > 0 ? x.minutes : null, dread: x.dread }));
   const doAction = (s, i) => {
@@ -1148,13 +1190,17 @@ function TodoPanel({ todos, setTodos, tasks, nowAbs, todayN, onSchedule, onUnsch
         </div>
         <div className="todo-tools">
           <button className="btn ghost small" type="button" disabled={!unplanned.length} onClick={planAll}>Plan all{unplanned.length ? ` (${unplanned.length})` : ""}</button>
-          <button className="btn ghost small" type="button" aria-expanded={dumpOpen} onClick={() => setDumpOpen((o) => !o)}>✦ Brain dump</button>
-          <button id="f-ask" className="btn small ai-btn" type="button" disabled={busy === "suggest"} onClick={runSuggest}>{busy === "suggest" ? "Thinking…" : "✦ What should I do?"}</button>
-          <button className="linkbtn" type="button" onClick={() => setShowKey((v) => !v)}>{ai.apiKey ? "AI: on" : "AI: off"}</button>
+          <button className="btn ghost small" type="button" aria-expanded={dumpOpen} onClick={() => setDumpOpen((o) => !o)}
+            title="Paste messy notes; Claude sorts them into to-dos, exams and events">✦ Brain dump</button>
+          <button id="f-ask" className="btn small ai-btn" type="button" disabled={busy === "suggest"} onClick={runSuggest}
+            title="Claude looks at everything and tells you what to do next">{busy === "suggest" ? "Thinking…" : "✦ What should I do?"}</button>
+          {ai.apiKey
+            ? <button className="ai-chip on" type="button" title="AI is connected. Click to manage your API key." onClick={() => setAiPanel(aiPanel ? null : { reason: null })}><i />AI on</button>
+            : <button className="ai-chip off" type="button" aria-expanded={!!aiPanel} onClick={() => setAiPanel(aiPanel ? null : { reason: null })}>Set up AI</button>}
         </div>
       </div>
 
-      {showKey && <AiKeyPanel ai={ai} setAi={setAi} onClose={() => setShowKey(false)} />}
+      {aiPanel && <AiKeyPanel ai={ai} reason={aiPanel.reason} onSave={saveKey} onRemove={() => setAi({ apiKey: "" })} onClose={() => setAiPanel(null)} />}
       {error && <p className="banner" style={{ marginTop: 10 }}>{error}</p>}
 
       <form className="quick" onSubmit={quickAdd}>
