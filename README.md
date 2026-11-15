@@ -2,7 +2,7 @@
 
 A student planner built around one question: *how long will this actually take me?*
 
-**Try it:** open `index.html` in a browser. There's no build step and no server.
+**Try it live:** https://rockets789.github.io/realitycheck/ (or open `index.html` locally. There's no build step and no server.)
 
 ## Inspiration
 Every student has said "that'll take an hour" about something that took four. Psychologists call it the **planning fallacy**: we estimate the best case, not the real one. Calendars make it worse. They'll happily let you plan a problem set into the 45 minutes between practice and dinner, as if you start the second you sit down, never get tired, and never check your phone.
