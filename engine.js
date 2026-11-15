@@ -669,6 +669,52 @@ function gradeSummary(cls) {
   };
 }
 
+/* A realistic split of what's left: every category stays close to what you usually score there
+ * (your average so far, or your own guess in c.expect), and the extra points you need are shared out
+ * as the same bump everywhere, capped at 100. So if homework is already ~100, quizzes and exams carry the rest.
+ * Also: what you'd need on one item / one category if everything else goes like usual. */
+function realisticPlan(cls, cut) {
+  const s = gradeSummary(cls);
+  if (!s || s.pending < 0.01) return null;
+  const total = (cls.categories || []).reduce((a, c) => a + Math.max(0, Number(c.weight) || 0), 0);
+  const fallback = s.current != null ? s.current : 85;
+  const cats = (cls.categories || []).map((c, ci) => {
+    const w = Math.max(0, Number(c.weight) || 0);
+    const items = (c.items || []).filter((i) => Number(i.outOf) > 0);
+    const possible = items.reduce((a, i) => a + Number(i.outOf), 0);
+    const share = (w / total) * 100; // this category's slice of the final grade, in %
+    const left = items.length
+      ? items.filter((i) => !hasScore(i)).map((i) => ({ id: i.id, name: i.name || "Untitled", share: (share * Number(i.outOf)) / possible }))
+      : [{ id: c.id, name: c.name || "Untitled", share, whole: true }];
+    const own = c.expect !== "" && c.expect != null && Number.isFinite(Number(c.expect));
+    const avg = s.cats[ci] && s.cats[ci].avg;
+    const usual = clamp(own ? Number(c.expect) : avg != null ? avg : fallback, 0, 100);
+    return { id: c.id, name: c.name || "Untitled", left, pend: left.reduce((a, i) => a + i.share, 0), usual,
+      source: own ? "you" : avg != null ? "so far" : "guess" };
+  }).filter((c) => c.pend > 0.001);
+
+  const N = cut - s.banked; // points of the final grade still needed
+  const at = (d) => cats.reduce((a, c) => a + (c.pend * clamp(c.usual + d, 0, 100)) / 100, 0);
+  const asUsual = at(0);
+  let bump = null; // same number of points above (or below) usual in every category, capped 0-100
+  if (N <= 0) bump = -Infinity;
+  else if (at(100) + 1e-9 < N) bump = Infinity;
+  else {
+    let lo = -100, hi = 100;
+    for (let k = 0; k < 60; k++) { const m = (lo + hi) / 2; if (at(m) < N) lo = m; else hi = m; }
+    bump = hi;
+  }
+  const aim = (c) => (Number.isFinite(bump) ? clamp(c.usual + bump, 0, 100) : bump > 0 ? 100 : 0);
+  // Need on one piece, with everything else at its usual score
+  const alone = (share, usual) => ((N - (asUsual - (share * usual) / 100)) / share) * 100;
+  return {
+    need: N, asUsualFinal: s.banked + asUsual, bump,
+    cats: cats.map((c) => ({ ...c, aim: aim(c), alone: alone(c.pend, c.usual) })),
+    items: cats.flatMap((c) => c.left.map((i) => ({ ...i, cat: c.name, usual: c.usual, alone: alone(i.share, c.usual) })))
+      .sort((a, b) => b.share - a.share),
+  };
+}
+
 /* The class a Cram exam belongs to: "MA 261 Midterm 2" matches a class named "MA 261" (spaces and case ignored). */
 const normName = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 function classForExam(classes, examName) {
@@ -679,7 +725,7 @@ function classForExam(classes, examName) {
 }
 
 if (typeof module !== "undefined") module.exports = {
-  gradeSummary, letterFor, classForExam,
+  gradeSummary, realisticPlan, letterFor, classForExam,
   DAY_MIN, DAY_START, DAY_END, dayNum, keyOf, dateKey, absFromLocal, localFromAbs, fmtWhen,
   estimate, freeGaps, planningWindows, clipWindows, capLeftFrom, placeTask, planTasks, planAll, trimForCram,
   deadlineStatus, countSessions, cramAllocate, usableMinutes, eventIntensity, recoveryAfter, eventBusy, taskBusy, cramStudyTasks, cookedWeight, suggestedDays, migrateTasks,
