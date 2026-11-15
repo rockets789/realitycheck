@@ -272,10 +272,41 @@
   .chip .mono { font-size: 10.5px; opacity: .7; margin-right: 4px; }
   .more { font-size: 11px; color: var(--muted); padding-left: 4px; }
   /* Pomodoro */
+  .clocks { display: flex; flex-direction: column; gap: 12px; }
+  .clock-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .clock-head h2 { margin: 0; display: flex; align-items: center; gap: 8px; }
+  .clock-nav { display: flex; gap: 4px; }
+  .clock-tabs { display: flex; gap: 4px; background: var(--paper); border-radius: 10px; padding: 3px; }
+  .clock-tabs button { all: unset; box-sizing: border-box; flex: 1; text-align: center; padding: 5px 6px; border-radius: 8px; font-size: 12.5px; color: var(--muted);
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+  .clock-tabs button:hover { color: var(--ink); }
+  .clock-tabs button[aria-selected="true"] { background: var(--card); color: var(--ink); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .clock-tabs button:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+  .clock-tabs i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .35; }
+  .clock-tabs button[aria-selected="true"] i { opacity: 1; background: var(--accent); }
+  .clock-tabs button.live i { opacity: 1; background: var(--accent); animation: clock-live 1.4s ease-in-out infinite; }
+  @keyframes clock-live { 50% { transform: scale(1.6); opacity: .5; } }
+  @media (prefers-reduced-motion: reduce) { .clock-tabs button.live i { animation: none; } }
   .pomo { --pomo: var(--accent); display: flex; flex-direction: column; gap: 12px; }
   .pomo.short { --pomo: var(--sage); }
   .pomo.long { --pomo: #4a72c4; }
   .pomo h2 { margin: 0; }
+  .sw-face { text-align: center; padding: 22px 0 8px; }
+  .sw-time { font-size: 40px; font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .sw-cur { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .pomo-actions.two { grid-template-columns: 2fr 1fr; }
+  .sw-laps { list-style: none; margin: 0; padding: 0; max-height: 180px; overflow: auto; font-size: 13px; border-top: 1px solid var(--line); }
+  .sw-laps li { display: grid; grid-template-columns: 1fr auto auto; gap: 14px; padding: 6px 2px; border-bottom: 1px solid var(--line); }
+  .sw-laps li.best span:nth-child(2) { color: var(--sage); font-weight: 600; }
+  .sw-laps li.worst span:nth-child(2) { color: var(--warn); }
+  .timer-set { display: flex; justify-content: center; gap: 8px; }
+  .timer-set label { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11.5px; color: var(--muted); }
+  .timer-set input { width: 64px; text-align: center; font-family: "DM Mono", monospace; font-size: 18px; padding: 6px 4px; }
+  .timer-presets { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+  .timer-presets .btn[aria-pressed="true"] { border-color: var(--ink); font-weight: 600; }
+  .timer-of { margin: -4px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
+  .clock-timer.done .pomo-time { color: var(--accent); font-family: "Fraunces", serif; font-weight: 700; }
+  .clock-timer.done .pomo-ring .fill { animation: clock-live 1.4s ease-in-out 3; }
   .pomo-modes { align-self: flex-start; }
   .pomo-body { position: relative; width: 168px; height: 168px; align-self: center; }
   .pomo-ring { width: 100%; height: 100%; }
@@ -1259,8 +1290,7 @@ function pomoAdvance(p, { counted }) {
   return p.autoStart ? { ...next, running: true, endsAt: Date.now() + len, leftMs: null } : { ...next, running: false, endsAt: null, leftMs: null };
 }
 
-function Pomodoro({ tasks, nowAbs }) {
-  const [p, setP] = useStoredState(POMO_KEY, POMO_DEFAULT);
+function Pomodoro({ tasks, nowAbs, p, setP }) {
   const [, tick] = useState(0);
   const [open, setOpen] = useState(false);
   const len = pomoLen(p, p.mode);
@@ -1284,11 +1314,7 @@ function Pomodoro({ tasks, nowAbs }) {
   }, [p.running, p.endsAt]);
 
   // Countdown in the tab title, so you can see it from another tab.
-  const baseTitle = useRef(document.title);
-  useEffect(() => {
-    document.title = p.running ? `${mmss(left)} · ${POMO_LABEL[p.mode]} — RealityCheck` : baseTitle.current;
-  });
-  useEffect(() => () => { document.title = baseTitle.current; }, []);
+  useTabTitle(p.running ? `${mmss(left)} · ${POMO_LABEL[p.mode]} — RealityCheck` : null);
 
   const start = () => {
     if ("Notification" in window && Notification.permission === "default") { try { Notification.requestPermission(); } catch (e) {} }
@@ -1310,8 +1336,7 @@ function Pomodoro({ tasks, nowAbs }) {
 
   const R = 54, C = 2 * Math.PI * R, frac = 1 - left / len;
   return (
-    <div className={"card pomo " + p.mode} id="f-pomo">
-      <h2>Pomodoro <span className="tag">{POMO_LABEL[p.mode]}</span></h2>
+    <div className={"pomo " + p.mode}>
       <div className="seg-ctrl pomo-modes" role="group" aria-label="Timer mode">
         {Object.keys(POMO_LABEL).map((m) => (
           <button key={m} type="button" aria-pressed={p.mode === m} onClick={() => switchTo(m)}>{POMO_LABEL[m]}</button>
@@ -1363,6 +1388,205 @@ function Pomodoro({ tasks, nowAbs }) {
           <label className="check"><input type="checkbox" checked={!!p.autoStart} onChange={(e) => set({ autoStart: e.target.checked })} /> Start the next one automatically</label>
         </div>
       )}
+    </div>
+  );
+}
+
+/* Shows a countdown in the browser tab while something is running; puts the page's own title back after.
+ * Only the clock that set the title restores it, so two clocks don't fight over it every render. */
+const BASE_TITLE = document.title;
+let titleOwner = null;
+function useTabTitle(text) {
+  const me = useRef({});
+  useEffect(() => {
+    if (text) { titleOwner = me.current; document.title = text; }
+    else if (titleOwner === me.current) { titleOwner = null; document.title = BASE_TITLE; }
+  });
+  useEffect(() => () => { if (titleOwner === me.current) { titleOwner = null; document.title = BASE_TITLE; } }, []);
+}
+const notify = (text) => {
+  if ("Notification" in window && Notification.permission === "granted") { try { new Notification(text, { silent: true }); } catch (e) {} }
+};
+const askNotify = () => {
+  if ("Notification" in window && Notification.permission === "default") { try { Notification.requestPermission(); } catch (e) {} }
+};
+// 1:02:03 or 02:03 (rounded up, for countdowns)
+const hms = (ms) => { const t = Math.ceil(ms / 1000), h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), x = t % 60; return h ? `${h}:${pad2(m)}:${pad2(x)}` : `${pad2(m)}:${pad2(x)}`; };
+// 02:03.45 or 1:02:03.4 (stopwatch, rounded down)
+const swTime = (ms) => {
+  const cs = Math.floor(ms / 10), h = Math.floor(cs / 360000), m = Math.floor((cs % 360000) / 6000), x = Math.floor((cs % 6000) / 100), c = cs % 100;
+  return h ? `${h}:${pad2(m)}:${pad2(x)}.${Math.floor(c / 10)}` : `${pad2(m)}:${pad2(x)}.${pad2(c)}`;
+};
+
+/* ---------- Stopwatch ---------- */
+const SW_KEY = "realitycheck.stopwatch.v1";
+const SW_DEFAULT = { running: false, startedAt: null, elapsedMs: 0, laps: [] }; // laps: total elapsed at each lap
+const swElapsed = (w) => (w.running ? w.elapsedMs + Date.now() - w.startedAt : w.elapsedMs);
+function Stopwatch({ w, setW, active }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (!w.running || !active) return;
+    const id = setInterval(() => tick((x) => x + 1), 50);
+    return () => clearInterval(id);
+  }, [w.running, active]);
+  const el = swElapsed(w);
+  const start = () => setW((q) => ({ ...q, running: true, startedAt: Date.now() }));
+  const pause = () => setW((q) => ({ ...q, running: false, startedAt: null, elapsedMs: swElapsed(q) }));
+  const lap = () => setW((q) => ({ ...q, laps: [...q.laps, swElapsed(q)].slice(-99) }));
+  const reset = () => setW(() => ({ ...SW_DEFAULT }));
+  const splits = w.laps.map((t, i) => ({ n: i + 1, total: t, split: t - (i ? w.laps[i - 1] : 0) }));
+  const best = splits.length > 1 ? Math.min(...splits.map((x) => x.split)) : null, worst = splits.length > 1 ? Math.max(...splits.map((x) => x.split)) : null;
+  const cur = el - (w.laps.length ? w.laps[w.laps.length - 1] : 0);
+  return (
+    <div className="pomo clock-sw">
+      <div className="sw-face">
+        <div className="sw-time mono" role="timer" aria-label={`Stopwatch ${swTime(el)}`}>{swTime(el)}</div>
+        {w.laps.length > 0 && <div className="sw-cur mono">Lap {w.laps.length + 1} · {swTime(cur)}</div>}
+      </div>
+      <div className="pomo-actions two">
+        {w.running
+          ? <button className="btn" type="button" onClick={pause}>Pause</button>
+          : <button className="btn" type="button" onClick={start}>{el > 0 ? "Resume" : "Start"}</button>}
+        {w.running
+          ? <button className="btn ghost" type="button" onClick={lap}>Lap</button>
+          : <button className="btn ghost" type="button" onClick={reset} disabled={el === 0}>Reset</button>}
+      </div>
+      {splits.length > 0 && (
+        <ol className="sw-laps">
+          {splits.slice().reverse().map((x) => (
+            <li key={x.n} className={x.split === best ? "best" : x.split === worst ? "worst" : ""}>
+              <span>Lap {x.n}</span><span className="mono">{swTime(x.split)}</span><span className="mono muted">{swTime(x.total)}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Timer (plain countdown) ---------- */
+const TIMER_KEY = "realitycheck.timer.v1";
+const TIMER_DEFAULT = { durMs: 10 * 60000, running: false, endsAt: null, leftMs: null, done: false, sound: true };
+const TIMER_PRESETS = [5, 10, 15, 30, 45, 60];
+function CountdownTimer({ t, setT }) {
+  const [, tick] = useState(0);
+  const left = t.running ? Math.max(0, t.endsAt - Date.now()) : t.done ? 0 : t.leftMs != null ? t.leftMs : t.durMs;
+  const idle = !t.running && !t.done && t.leftMs == null;
+  useEffect(() => {
+    if (!t.running) return;
+    const endsAt = t.endsAt;
+    const id = setInterval(() => {
+      if (Date.now() < endsAt) return tick((x) => x + 1);
+      clearInterval(id);
+      const fresh = Date.now() - endsAt < 5000; // don't chime for one that ran out while the page was closed
+      if (fresh && t.sound) chime();
+      if (fresh) notify("Time's up.");
+      setT((q) => (q.running && q.endsAt === endsAt ? { ...q, running: false, endsAt: null, leftMs: null, done: true } : q));
+    }, 250);
+    return () => clearInterval(id);
+  }, [t.running, t.endsAt]);
+  useTabTitle(t.running ? `${hms(left)} · Timer — RealityCheck` : null);
+
+  const setDur = (ms) => setT((q) => ({ ...q, durMs: clamp(ms, 0, 24 * 3600000 - 1000), running: false, endsAt: null, leftMs: null, done: false }));
+  const start = () => { askNotify(); setT((q) => ({ ...q, running: true, endsAt: Date.now() + (q.done ? q.durMs : left), leftMs: null, done: false })); };
+  const pause = () => setT((q) => ({ ...q, running: false, endsAt: null, leftMs: left }));
+  const reset = () => setT((q) => ({ ...q, running: false, endsAt: null, leftMs: null, done: false }));
+  const addMin = () => idle ? setDur(t.durMs + 60000)
+    : setT((q) => q.running ? { ...q, endsAt: q.endsAt + 60000, durMs: q.durMs + 60000 }
+      : q.done ? { ...q, leftMs: 60000, durMs: 60000, done: false } // "one more minute" after it went off
+      : { ...q, leftMs: q.leftMs + 60000, durMs: q.durMs + 60000 });
+  const h = Math.floor(t.durMs / 3600000), m = Math.floor((t.durMs % 3600000) / 60000), sec = Math.floor((t.durMs % 60000) / 1000);
+  const part = (k, v) => {
+    const n = Math.max(0, Math.floor(Number(v) || 0));
+    const parts = { h, m, s: sec, [k]: n };
+    setDur((parts.h * 3600 + parts.m * 60 + parts.s) * 1000);
+  };
+  const R = 54, C = 2 * Math.PI * R, frac = t.durMs ? 1 - left / t.durMs : 0;
+  return (
+    <div className={"pomo clock-timer" + (t.done ? " done" : "")}>
+      <div className="pomo-body">
+        <svg className="pomo-ring" viewBox="0 0 128 128" aria-hidden="true">
+          <circle cx="64" cy="64" r={R} className="track" />
+          <circle cx="64" cy="64" r={R} className="fill" strokeDasharray={C} strokeDashoffset={C * (1 - frac)} transform="rotate(-90 64 64)" />
+        </svg>
+        <div className="pomo-time mono" role="timer" aria-label={t.done ? "Time's up" : `${hms(left)} left`}>{t.done ? "Done" : hms(left)}</div>
+      </div>
+      {idle ? (
+        <>
+          <div className="timer-set" role="group" aria-label="Timer length">
+            {[["h", h, "hr", 23], ["m", m, "min", 59], ["s", sec, "sec", 59]].map(([k, v, label, max]) => (
+              <label key={k}><input type="number" min="0" max={max} value={v} aria-label={label} onChange={(e) => part(k, e.target.value)} /><span>{label}</span></label>
+            ))}
+          </div>
+          <div className="timer-presets">
+            {TIMER_PRESETS.map((n) => (
+              <button key={n} type="button" className="btn ghost small" aria-pressed={t.durMs === n * 60000} onClick={() => setDur(n * 60000)}>{n < 60 ? `${n}m` : `${n / 60}h`}</button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <p className="timer-of">{t.done ? `${hms(t.durMs)} timer finished.` : `of ${hms(t.durMs)}`}</p>
+      )}
+      <div className="pomo-actions">
+        {t.running
+          ? <button className="btn" type="button" onClick={pause}>Pause</button>
+          : <button className="btn" type="button" onClick={start} disabled={!t.durMs}>{t.done ? "Again" : idle ? "Start" : "Resume"}</button>}
+        <button className="btn ghost" type="button" onClick={reset} disabled={idle}>Reset</button>
+        <button className="btn ghost" type="button" onClick={addMin} title="Add a minute">+1 min</button>
+      </div>
+      <label className="check"><input type="checkbox" checked={!!t.sound} onChange={(e) => setT((q) => ({ ...q, sound: e.target.checked }))} /> Chime when time's up</label>
+    </div>
+  );
+}
+
+/* ---------- The Timer tile: Pomodoro → Stopwatch → Timer, as slides. All three keep running when you slide away. ---------- */
+const CLOCK_SLIDES = [["pomo", "Pomodoro"], ["sw", "Stopwatch"], ["timer", "Timer"]];
+const CLOCK_SLIDE_KEY = "realitycheck.clockSlide.v1";
+function Clocks({ tasks, nowAbs }) {
+  const [p, setP] = useStoredState(POMO_KEY, POMO_DEFAULT);
+  const [w, setW] = useStoredState(SW_KEY, SW_DEFAULT);
+  const [t, setT] = useStoredState(TIMER_KEY, TIMER_DEFAULT);
+  const [nav, setNav] = useStoredState(CLOCK_SLIDE_KEY, { i: 0 });
+  const i = clamp(Math.round(Number(nav.i) || 0), 0, CLOCK_SLIDES.length - 1);
+  const slides = useRef([]), touch = useRef(null), prev = useRef(i);
+  const go = (n) => setNav({ i: (n + CLOCK_SLIDES.length) % CLOCK_SLIDES.length });
+  const running = { pomo: p.running, sw: w.running, timer: t.running || t.done };
+  // Slide in from the side you're moving toward
+  useEffect(() => {
+    if (prev.current === i) return;
+    const fwd = (i - prev.current + CLOCK_SLIDES.length) % CLOCK_SLIDES.length === 1;
+    prev.current = i;
+    const el = slides.current[i];
+    if (el && el.animate && !(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches))
+      el.animate([{ transform: `translateX(${fwd ? 28 : -28}px)`, opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 220, easing: "cubic-bezier(.2,.8,.2,1)" });
+  }, [i]);
+  return (
+    <div className={"card clocks " + (i === 0 ? p.mode : CLOCK_SLIDES[i][0])} id="f-pomo"
+      onTouchStart={(e) => { const x = e.touches[0]; touch.current = { x: x.clientX, y: x.clientY }; }}
+      onTouchEnd={(e) => {
+        const a = touch.current; touch.current = null;
+        if (!a) return;
+        const x = e.changedTouches[0], dx = x.clientX - a.x, dy = x.clientY - a.y;
+        if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) go(i + (dx < 0 ? 1 : -1));
+      }}>
+      <div className="clock-head">
+        <h2>{CLOCK_SLIDES[i][1]}{i === 0 && <span className="tag">{POMO_LABEL[p.mode]}</span>}</h2>
+        <div className="clock-nav">
+          <button type="button" className="icon-btn" aria-label={`Previous: ${CLOCK_SLIDES[(i + 2) % 3][1]}`} onClick={() => go(i - 1)}>‹</button>
+          <button type="button" className="icon-btn" aria-label={`Next: ${CLOCK_SLIDES[(i + 1) % 3][1]}`} onClick={() => go(i + 1)}>›</button>
+        </div>
+      </div>
+      <div className="clock-tabs" role="tablist" aria-label="Clock">
+        {CLOCK_SLIDES.map(([k, label], n) => (
+          <button key={k} type="button" role="tab" aria-selected={n === i} onClick={() => go(n)}
+            className={running[k] && n !== i ? "live" : ""} title={running[k] && n !== i ? `${label} is running` : label}>
+            <i aria-hidden="true" />{label}
+          </button>
+        ))}
+      </div>
+      <div ref={(el) => (slides.current[0] = el)} hidden={i !== 0}><Pomodoro tasks={tasks} nowAbs={nowAbs} p={p} setP={setP} /></div>
+      <div ref={(el) => (slides.current[1] = el)} hidden={i !== 1}><Stopwatch w={w} setW={setW} active={i === 1} /></div>
+      <div ref={(el) => (slides.current[2] = el)} hidden={i !== 2}><CountdownTimer t={t} setT={setT} /></div>
     </div>
   );
 }
@@ -2761,7 +2985,7 @@ function App() {
       <DayStats events={events} tasks={tasks} date={view === "day" ? anchor : now.today} now={now} />
     ),
     timer: (
-      <Pomodoro tasks={tasks} nowAbs={nowAbs} />
+      <Clocks tasks={tasks} nowAbs={nowAbs} />
     ),
     event: (
       <AddEventForm onAdd={addEvent} draft={draft} defaultDate={view === "day" ? anchor : now.today} />
