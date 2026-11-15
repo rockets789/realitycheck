@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cram Mode — RealityCheck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<style>
+  :root {
+    --paper: #f6f2ea; --card: #fffdf8; --ink: #1f1d1a; --muted: #6f6a61; --line: #e4ddd0; --line-strong: #cfc6b6;
+    --accent: #1e3a5f; --accent-soft: #e7edf5; --accent-ink: #17304f; --warn: #b3362b; --warn-soft: #f7e3e0; --warn-ink: #7d2a22; --sage: #5d8a6a; --sage-soft: #e3eee5; --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--paper); color: var(--ink); }
+  body { font-family: "DM Sans", system-ui, sans-serif; font-size: 15px; line-height: 1.45; }
+  button, input, select { font: inherit; color: inherit; }
+  .mono { font-family: "DM Mono", ui-monospace, monospace; }
+  .app { max-width: 1180px; margin: 0 auto; padding: 28px 20px 60px; }
+  header.top { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
+  .brand h1 { font-family: "Fraunces", serif; font-weight: 700; font-size: 34px; letter-spacing: -0.02em; margin: 0; }
+  .brand h1 span { color: var(--accent); }
+  .brand p { margin: 4px 0 0; color: var(--muted); }
+  .back { color: var(--ink); font-weight: 600; text-decoration: none; border: 1px solid var(--line-strong); border-radius: 10px; padding: 7px 12px; background: var(--card); }
+  .layout { display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 20px; align-items: start; }
+  @media (max-width: 960px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
+  .stack { display: flex; flex-direction: column; gap: 16px; }
+  .card h2 { font-family: "Fraunces", serif; font-size: 19px; font-weight: 500; margin: 0 0 4px; display: flex; align-items: center; gap: 8px; }
+  .card .sub { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+  label.field { display: flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 500; color: var(--muted); min-width: 0; }
+  input[type=text], input[type=number], input[type=datetime-local] {
+    background: #fff; border: 1px solid var(--line-strong); border-radius: 10px; padding: 9px 11px; font-size: 15px; color: var(--ink); width: 100%; min-width: 0;
+  }
+  input:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row3 { display: grid; grid-template-columns: 1.6fr 1fr; gap: 10px; }
+  .swatches { display: flex; gap: 6px; }
+  .swatch { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+  .swatch[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 2px #fff; }
+  .btn { border: 1px solid var(--ink); background: var(--ink); color: #fff; border-radius: 10px; padding: 10px 14px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; text-align: center; }
+  .btn:hover { opacity: .9; }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn.ghost { background: transparent; color: var(--ink); border-color: var(--line-strong); font-weight: 500; }
+  .btn.hot { background: var(--accent); border-color: var(--accent); }
+  .error { color: var(--warn); font-size: 13px; margin: 0; }
+  .note { font-size: 12px; color: var(--muted); margin: 0; }
+  .linkbtn { background: none; border: none; padding: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: 12px; }
+  .x { border: none; background: none; cursor: pointer; color: var(--muted); font-size: 18px; line-height: 1; padding: 0 2px; }
+
+  .slider { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; }
+  .slider .name { font-size: 13px; font-weight: 500; }
+  .slider .val { font-family: "DM Mono", monospace; font-size: 13px; background: var(--paper); border-radius: 6px; padding: 1px 7px; }
+  .slider input { grid-column: 1 / -1; width: 100%; accent-color: var(--ink); }
+  .slider .ends { grid-column: 1 / -1; display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: -2px; }
+
+  .exam { border: 1px solid var(--line); border-left: 5px solid; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 10px; background: #fff; }
+  .exam-top { display: flex; gap: 8px; align-items: center; }
+  .exam-top input { font-weight: 600; }
+  .cooked { font-weight: 600; }
+  .days-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+  .days-row input { width: 70px; padding: 5px 8px; }
+  .tag { font-family: "DM Mono", monospace; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; padding: 2px 7px; border-radius: 6px; background: var(--paper); border: 1px solid var(--line); color: var(--muted); }
+
+  /* Plan preview */
+  .totals { display: flex; flex-direction: column; gap: 10px; }
+  .total-row .top { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; }
+  .total-row .top b { font-weight: 600; }
+  .total-row .meta { font-size: 12px; color: var(--muted); }
+  .track { height: 10px; border-radius: 5px; background: var(--paper); overflow: hidden; margin: 5px 0 3px; }
+  .track i { display: block; height: 100%; border-radius: 5px; }
+  .days { display: flex; flex-direction: column; gap: 8px; }
+  .day-row { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 10px; align-items: center; }
+  .day-label { font-size: 12px; color: var(--muted); line-height: 1.25; }
+  .day-label b { display: block; color: var(--ink); font-size: 13px; }
+  .day-bar { position: relative; height: 26px; border-radius: 7px; background: var(--paper); display: flex; overflow: hidden; }
+  .day-bar i { display: block; height: 100%; border-right: 2px solid var(--card); }
+  .day-bar i.hw { background: repeating-linear-gradient(135deg, #d9d2c4 0 5px, #ece6da 5px 10px); }
+  .day-meta { grid-column: 2; font-size: 11.5px; color: var(--muted); margin-top: -4px; }
+  .day-meta .exam-flag { color: var(--accent); font-weight: 600; }
+  .day-meta .busy-flag { color: #8a6a1f; }
+  .day-meta .catchup { color: var(--sage); font-weight: 600; }
+  .day-bar i.blocked, .legend i.blocked-key { background: repeating-linear-gradient(45deg, #c9932b 0 2px, #fdf0d6 2px 7px); opacity: .8; }
+  .day-bar i.blocked { margin-left: auto; border-right: none; border-left: 2px solid var(--card); }
+  .grade-hint { margin: 0; font-size: 12.5px; background: var(--paper); border-radius: 8px; padding: 7px 9px; }
+  .grade-hint a { color: var(--ink); font-weight: 600; }
+  .big-item { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  select { background: #fff; border: 1px solid var(--line-strong); border-radius: 10px; padding: 9px 11px; font-size: 15px; width: 100%; min-width: 0; }
+  input[type=date], input[type=time] { background: #fff; border: 1px solid var(--line-strong); border-radius: 10px; padding: 9px 11px; font-size: 15px; color: var(--ink); width: 100%; min-width: 0; }
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .hw-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .hw-list li { background: var(--paper); border-radius: 10px; padding: 8px 11px; font-size: 13px; }
+  .hw-list li b { font-weight: 600; }
+  .hw-list .warn { color: var(--warn); font-weight: 500; }
+  .banner { background: var(--warn-soft); color: var(--warn-ink); border-radius: 10px; padding: 9px 11px; font-size: 13px; margin: 0; }
+  .banner.ok { background: var(--sage-soft); color: #2f5a3b; }
+  .empty { font-size: 14px; color: var(--muted); margin: 0; }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- Shared estimation + scheduling + cram engine (same file the calendar uses) -->
+<script src="engine.js"></script>
+<script src="rail.js"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect } = React;
+
+const newId = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()));
+const BIG_MIN = 60; // fixed events this long or longer count as "big stuff" in the way
+const REPEATS = { once: "Just once", daily: "Every day", weekdays: "Weekdays (Mon–Fri)" };
+const fmtSpan = (a, b) => `${fmt(a)} – ${fmt(b)}`;
+const SETTINGS_DEFAULT = { windDown: "21:00", planFrom: "", lookahead: 7, dailyCapH: 4 };
+
+/* Same storage hook as the calendar, so both pages read and write the same data (and stay in sync across tabs). */
+function useStoredState(key, fallback, migrate) {
+  const [value, setValue] = useState(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem(key));
+      if (Array.isArray(fallback)) { if (Array.isArray(v)) return migrate ? migrate(v) : v; }
+      else if (v && typeof v === "object") return { ...fallback, ...v };
+    } catch (e) {}
+    return fallback;
+  });
+  useEffect(() => { try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {} }, [key, value]);
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key !== key || e.newValue == null) return;
+      try { const v = JSON.parse(e.newValue); setValue(Array.isArray(fallback) ? (migrate ? migrate(v) : v) : { ...fallback, ...v }); } catch (err) {}
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [key]);
+  return [value, setValue];
+}
+
+function useNow() {
+  const get = () => { const d = new Date(); return { today: dateKey(d), min: d.getHours() * 60 + d.getMinutes() }; };
+  const [now, setNow] = useState(get);
+  useEffect(() => { const t = setInterval(() => setNow(get()), 30000); return () => clearInterval(t); }, []);
+  return now;
+}
+
+function Slider({ name, value, display, onChange, min, max, step, low, high }) {
+  return (
+    <div className="slider">
+      <span className="name">{name}</span>
+      <span className="val">{display}</span>
+      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} aria-label={name} />
+      <div className="ends"><span>{low}</span><span>{high}</span></div>
+    </div>
+  );
+}
+
+function ExamCard({ exam, nowAbs, grade, onChange, onRemove }) {
+  const c = COLORS[exam.color] || COLORS[0];
+  const at = absFromLocal(exam.when);
+  const autoDays = exam.days == null;
+  const days = autoDays ? suggestedDays(exam.cooked) : exam.days;
+  const set = (patch) => onChange({ ...exam, ...patch });
+  return (
+    <div className="exam" style={{ borderLeftColor: c.edge }}>
+      <div className="exam-top">
+        <input type="text" placeholder="Class, e.g. MA 261" value={exam.name} aria-label="Exam name" onChange={(e) => set({ name: e.target.value })} />
+        <button className="x" aria-label={`Remove ${exam.name || "exam"}`} onClick={onRemove}>×</button>
+      </div>
+      <div className="row3">
+        <label className="field">Exam starts
+          <input type="datetime-local" value={exam.when} onChange={(e) => set({ when: e.target.value })} />
+        </label>
+        <label className="field">Length (min)
+          <input type="number" min="15" max="300" step="15" value={exam.length}
+            onChange={(e) => set({ length: e.target.value === "" ? "" : Number(e.target.value) })} />
+        </label>
+      </div>
+      {!exam.name.trim() && <p className="error">Give it a name.</p>}
+      {exam.name.trim() && (at == null ? <p className="error">Set the exam date and time.</p>
+        : at <= nowAbs ? <p className="error">That's already happened. Pick a future time.</p> : null)}
+      <Slider name="How cooked are you?" value={exam.cooked} min={1} max={5} step={1}
+        display={<span className="cooked">{exam.cooked}/5 · {COOKED_LABELS[exam.cooked - 1]}</span>}
+        onChange={(v) => set({ cooked: v })} low="easy A" high="pray for a curve" />
+      {grade && grade.s.pending >= 0.01 && (
+        <p className="grade-hint">
+          <a href="grades.html">Grade check</a>: you need {grade.s.targetNeed > 100 ? "over 100%" : `${Math.max(0, Math.round(grade.s.targetNeed))}%`} on
+          the rest of {grade.cls.name} for a {grade.cls.target}{grade.s.current != null ? ` (averaging ${Math.round(grade.s.current)}%)` : ""}. That's {grade.s.cooked}/5.
+          {grade.s.cooked !== exam.cooked && <> <button className="linkbtn" onClick={() => set({ cooked: grade.s.cooked })}>Use {grade.s.cooked}/5</button></>}
+        </p>
+      )}
+      <div className="days-row">
+        Study over the last
+        <input type="number" min="1" max="21" value={days} aria-label="Study days"
+          onChange={(e) => set({ days: e.target.value === "" ? null : clamp(Math.round(Number(e.target.value)), 1, 21) })} />
+        days
+        {autoDays ? <span className="tag">auto</span> : <button className="linkbtn" onClick={() => set({ days: null })}>back to auto ({suggestedDays(exam.cooked)})</button>}
+      </div>
+      <div className="swatches" role="group" aria-label="Color">
+        {COLORS.map((col, i) => (
+          <button key={i} type="button" className="swatch" aria-pressed={exam.color === i} aria-label={`Color ${i + 1}`}
+            style={{ background: col.edge }} onClick={() => set({ color: i })} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* Practices, shifts, games: big fixed blocks between now and the exams. They go straight onto the calendar as fixed events. */
+function BigStuff({ events, fromDay, lastDay, defaultDate, onAdd, onRemove }) {
+  const [form, setForm] = useState({ title: "", date: defaultDate, start: "15:00", end: "18:00", repeat: "once" });
+  const [error, setError] = useState("");
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  useEffect(() => { if (!isDateKey(form.date)) setForm((f) => ({ ...f, date: defaultDate })); }, [defaultDate]);
+
+  const big = events
+    .filter((e) => !e.cramExamId && e.end - e.start >= BIG_MIN && dayNum(e.date) >= fromDay && dayNum(e.date) <= lastDay)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start);
+  // Show a repeating block once, with how many days it covers.
+  const groups = [];
+  big.forEach((e) => {
+    const g = e.seriesId && groups.find((x) => x.seriesId === e.seriesId);
+    if (g) g.items.push(e); else groups.push({ seriesId: e.seriesId, items: [e] });
+  });
+
+  const submit = (ev) => {
+    ev.preventDefault();
+    const s = toMin(form.start), en = toMin(form.end);
+    if (!form.title.trim()) return setError("What is it? (e.g. Practice)");
+    if (!isDateKey(form.date)) return setError("Pick a date.");
+    if (en <= s) return setError("End time has to be after the start time.");
+    if (en <= DAY_START || s >= DAY_END) return setError("The calendar runs 9:00 AM – 11:00 PM.");
+    const first = dayNum(form.date);
+    const until = form.repeat === "once" ? first : Math.max(first, lastDay);
+    const seriesId = form.repeat === "once" ? undefined : newId();
+    const list = [];
+    for (let d = first; d <= until; d++) {
+      const wd = weekday(keyOf(d));
+      if (form.repeat === "weekdays" && (wd === 0 || wd === 6)) continue;
+      list.push({ id: newId(), title: form.title.trim(), date: keyOf(d), start: s, end: en, color: 2, seriesId });
+    }
+    if (!list.length) return setError("No weekdays in that range.");
+    onAdd(list);
+    setForm((f) => ({ ...f, title: "" }));
+    setError("");
+  };
+
+  return (
+    <div className="card">
+      <h2>Big stuff in the way</h2>
+      <p className="sub">Practice, a game, a shift, a trip. Anything that eats a chunk of a day. Those days get less study, and the difference moves to days that have room.</p>
+      <div className="stack" style={{ gap: 12 }}>
+        {groups.length === 0 ? <p className="empty" style={{ fontSize: 13 }}>Nothing big on your calendar before your exams.</p> : (
+          <ul className="hw-list">
+            {groups.map((g) => {
+              const e = g.items[0], n = g.items.length;
+              return (
+                <li key={e.id} className="big-item">
+                  <div>
+                    <b>{e.title}</b> · {fmtSpan(e.start, e.end)}
+                    <div className="note">
+                      {n > 1
+                        ? `${n} days, ${fmtDate(e.date, { month: "short", day: "numeric" })} – ${fmtDate(g.items[n - 1].date, { month: "short", day: "numeric" })}`
+                        : fmtDate(e.date, { weekday: "short", month: "short", day: "numeric" })}
+                      {" · "}{fmtDur((e.end - e.start) * n)} total
+                      {recoveryAfter(e) > SCHED.breather ? ` · ${fmtDur(recoveryAfter(e))} to recover after` : ""}
+                    </div>
+                  </div>
+                  <button className="x" aria-label={`Remove ${e.title}`} title={n > 1 ? "Remove all of these" : "Remove"}
+                    onClick={() => onRemove(g.items.map((x) => x.id))}>×</button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <form className="stack" style={{ gap: 10 }} onSubmit={submit}>
+          <label className="field">What
+            <input type="text" placeholder="e.g. Soccer practice" value={form.title} onChange={set("title")} />
+          </label>
+          <div className="row">
+            <label className="field">Date<input type="date" value={form.date} onChange={set("date")} /></label>
+            <label className="field">Repeat
+              <select value={form.repeat} onChange={set("repeat")}>
+                {Object.entries(REPEATS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="row">
+            <label className="field">Starts<input type="time" step="300" value={form.start} onChange={set("start")} /></label>
+            <label className="field">Ends<input type="time" step="300" value={form.end} onChange={set("end")} /></label>
+          </div>
+          {form.repeat !== "once" && <p className="note">Repeats through your last exam ({fmtDate(keyOf(lastDay), { weekday: "short", month: "short", day: "numeric" })}).</p>}
+          {error && <p className="error">{error}</p>}
+          <button className="btn ghost" type="submit">+ Add to calendar</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [events, setEvents] = useStoredState(STORAGE_KEY, [], migrateEvents);
+  const [tasks, setTasks] = useStoredState(TASKS_KEY, [], migrateTasks);
+  const [settings] = useStoredState(SETTINGS_KEY, SETTINGS_DEFAULT);
+  const [cram, setCram] = useStoredState(CRAM_KEY, CRAM_DEFAULT);
+  const [grades] = useStoredState(GRADES_KEY, { classes: [] });
+  const gradeFor = (name) => { const cls = classForExam(grades.classes, name); const s = cls && gradeSummary(cls); return s ? { cls, s } : null; };
+  const [justApplied, setJustApplied] = useState(false);
+  const now = useNow();
+  const update = (patch) => { setCram((c) => ({ ...c, ...patch })); setJustApplied(false); };
+
+  /* ----- Inputs + plan (a dry run: nothing is saved until you hit Apply). The planning lives in engine.js (cramPlan),
+     so the calendar can re-run it when your fixed events change. ----- */
+  const todayN = dayNum(now.today);
+  const nowAbs = todayN * DAY_MIN + now.min;
+  const P = cramPlan({ cram, events, tasks, settings, nowAbs });
+  // Exams are facts, not plans: keep them on the calendar as you add or edit them, even before you apply.
+  useEffect(() => {
+    const next = withExamEvents(events, cram.exams, nowAbs);
+    const key = (list) => JSON.stringify(list.filter((e) => e.cramExamId));
+    if (key(next) !== key(events)) setEvents(next);
+  }, [cram.exams, events, todayN]);
+  const { fromAbs, windDown, dailyCap, dailyHours, hwShare, effort, stretchH, valid, examEvents, otherEvents, alloc, study, todoHw, plan, placedStudy, sig } = P;
+  const firstDay = dayOfAbs(fromAbs);
+  const lastExamDay = valid.length ? Math.max(...valid.map((e) => dayOfAbs(e.at))) : firstDay + 7;
+  // Big fixed blocks per day, for the day-by-day view
+  const bigOn = (day) => otherEvents.filter((e) => dayNum(e.date) === day && e.end - e.start >= BIG_MIN).sort((a, b) => a.start - b.start);
+
+  const studyMinOn = (examId, day) => placedStudy.filter((t) => t.examId === examId && t.fits)
+    .reduce((s, t) => s + t.segments.filter((g) => g.kind !== "break" && dayOfAbs(g.start) === day).reduce((a, g) => a + g.end - g.start, 0), 0);
+  const hwMinOn = (day) => todoHw.reduce((s, t) => s + ((plan[t.id] && plan[t.id].segments) || [])
+    .filter((g) => g.kind !== "break" && dayOfAbs(g.start) === day).reduce((a, g) => a + g.end - g.start, 0), 0);
+  const examTotals = valid.map((e) => {
+    const mine = placedStudy.filter((t) => t.examId === e.id);
+    const placed = mine.filter((t) => t.fits).reduce((s, t) => s + t.total, 0);
+    const wanted = mine.reduce((s, t) => s + t.total, 0);
+    const { lost, recovered } = alloc.byExam[e.id] || { lost: 0, recovered: 0 };
+    return { e, placed, missing: wanted - placed, lost, recovered, firstDay: mine.length ? dayOfAbs(mine[0].earliest) : null };
+  });
+  const grand = examTotals.reduce((s, x) => s + x.placed, 0) || 1;
+  const maxBudget = Math.max(60, ...alloc.days.map((d) => Math.max(d.budget, d.hw + Object.values(d.alloc).reduce((a, b) => a + b, 0))));
+  const unrecovered = alloc.lost - alloc.recovered;
+  const extraDays = alloc.days.filter((d) => Object.values(d.extra).some((m) => m > 0));
+
+  const dirty = cram.active && cram.appliedSig !== sig;
+
+  /* ----- Write to the calendar ----- */
+  const apply = () => {
+    setEvents(P.nextEvents);
+    setTasks(P.nextTasks);
+    setCram((c) => ({ ...c, active: true, hwCapByDay: alloc.hwCapByDay, appliedSig: sig }));
+    setJustApplied(true);
+  };
+  const turnOff = () => {
+    setTasks(P.offTasks());
+    setCram((c) => ({ ...c, active: false, hwCapByDay: {}, appliedSig: null }));
+    setJustApplied(false);
+  };
+  const addExam = () => update({
+    exams: [...cram.exams, { id: newId(), name: "", when: "", length: 90, cooked: 3, days: null, color: cram.exams.length % COLORS.length }],
+  });
+
+  return (
+    <div className="app">
+      <header className="top">
+        <div className="brand">
+          <h1>Cram <span>Mode</span></h1>
+          <p>Exams this week? Tell it how cooked you are. It shifts time from homework to studying, and toward the exams that need it most.</p>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <a className="back" href="grades.html">Grade check</a>
+          <a className="back" href="index.html">← Back to calendar</a>
+        </div>
+      </header>
+
+      <div className="layout">
+        <aside className="stack">
+          <div className="card" id="f-cram">
+            <h2>Your exams</h2>
+            <p className="sub">The more cooked you are, the bigger the share of each day's study time and the earlier you start. Two equally cooked exams split time evenly; the next exam up gets a boost.</p>
+            <div className="stack" style={{ gap: 12 }}>
+              {cram.exams.length === 0 && <p className="empty">No exams yet.</p>}
+              {cram.exams.map((e, i) => (
+                <ExamCard key={e.id} exam={e} nowAbs={nowAbs} grade={gradeFor(e.name)}
+                  onChange={(next) => update({ exams: cram.exams.map((x) => (x.id === e.id ? next : x)) })}
+                  onRemove={() => update({ exams: cram.exams.filter((x) => x.id !== e.id) })} />
+              ))}
+              <button className="btn ghost" type="button" onClick={addExam}>+ Add an exam</button>
+            </div>
+          </div>
+
+          <BigStuff events={events} fromDay={firstDay} lastDay={lastExamDay} defaultDate={now.today}
+            onAdd={(list) => { setEvents((es) => [...es, ...list]); setJustApplied(false); }}
+            onRemove={(ids) => { setEvents((es) => es.filter((e) => !ids.includes(e.id))); setJustApplied(false); }} />
+
+          <div className="card">
+            <h2>Cram settings</h2>
+            <p className="sub">How much time you'll give on cram days, and how much of it homework still gets.</p>
+            <div className="stack" style={{ gap: 14 }}>
+              <Slider name="Work time per cram day" value={dailyHours} min={1} max={14} step={0.5}
+                display={fmtDur(dailyHours * 60)} onChange={(v) => update({ dailyHours: v })} low="1h" high="14h (good luck)" />
+              <Slider name="Homework's share" value={Math.round(hwShare * 100)} min={0} max={80} step={5}
+                display={`${Math.round(hwShare * 100)}% · ${fmtDur(Math.round((dailyHours * 60 * hwShare) / 5) * 5)}/day`}
+                onChange={(v) => update({ hwShare: v / 100 })} low="exams only" high="mostly homework" />
+              <Slider name="Homework effort" value={Math.round(effort * 100)} min={50} max={100} step={5}
+                display={effort < 1 ? `${Math.round(effort * 100)}% · minimum viable` : "100% · full effort"}
+                onChange={(v) => update({ effort: v / 100 })} low="just get it submitted" high="full effort" />
+              <Slider name="Catch-up when a day is packed" value={stretchH} min={0} max={4} step={0.5}
+                display={stretchH ? `up to +${fmtDur(stretchH * 60)}/day` : "off"}
+                onChange={(v) => update({ stretchH: v })} low="lose that time" high="+4h on lighter days" />
+              <p className="note">
+                Uses your calendar's wind-down ({fmt(windDown)}) and fixed events. Days with no exam coming up keep
+                your normal limit ({dailyCap === Infinity ? "none" : fmtDur(dailyCap)} a day).
+              </p>
+            </div>
+          </div>
+        </aside>
+
+        <section className="stack">
+          <div className="card">
+            <h2>The plan</h2>
+            {valid.length === 0 ? (
+              <p className="empty">Add an exam with a name and a future date to see the plan.</p>
+            ) : (
+              <div className="stack">
+                <div className="totals">
+                  {alloc.lost > 0 && (
+                    <p className={"banner" + (unrecovered > 0 ? "" : " ok")}>
+                      Your fixed stuff takes <b>{fmtDur(alloc.lost)}</b> of study time.{" "}
+                      {alloc.recovered > 0 && <>Made up <b>{fmtDur(alloc.recovered)}</b> on {extraDays.length === 1 ? "a lighter day" : `${extraDays.length} lighter days`}
+                        {extraDays.length ? ` (${extraDays.map((d) => `${d.day === todayN ? "today" : fmtDate(keyOf(d.day), { weekday: "short" })} +${fmtDur(Object.values(d.extra).reduce((a, b) => a + b, 0))}`).join(", ")})` : ""}. </>}
+                      {unrecovered > 0
+                        ? <><b>{fmtDur(unrecovered)}</b> didn't fit anywhere. Raise the catch-up limit or the daily work time, or start that exam a day earlier.</>
+                        : "Nothing lost."}
+                    </p>
+                  )}
+                  {examTotals.map(({ e, placed, missing, lost, recovered, firstDay }) => {
+                    const c = COLORS[e.color] || COLORS[0];
+                    return (
+                      <div className="total-row" key={e.id}>
+                        <div className="top">
+                          <b>{e.name}</b>
+                          <span className="mono">{fmtDur(placed)} · {Math.round((placed / grand) * 100)}%</span>
+                        </div>
+                        <div className="track"><i style={{ width: `${(placed / grand) * 100}%`, background: c.edge }} /></div>
+                        <div className="meta">
+                          {COOKED_LABELS[e.cooked - 1]} · exam {fmtWhen(e.at, todayN)}
+                          {firstDay != null ? ` · studying from ${fmtDate(keyOf(firstDay), { weekday: "short", month: "short", day: "numeric" })}` : ""}
+                          {recovered > 0 && ` · ${fmtDur(recovered)} moved off busy days`}
+                          {lost - recovered > 0 && <span style={{ color: "var(--warn)", fontWeight: 600 }}> · {fmtDur(lost - recovered)} lost to busy days{" "}
+                            <button className="linkbtn" style={{ color: "var(--warn)" }}
+                              onClick={() => update({ exams: cram.exams.map((x) => (x.id === e.id ? { ...x, days: Math.min(21, e.days + 1) } : x)) })}>
+                              start a day earlier</button></span>}
+                          {missing > 0 && <span style={{ color: "var(--warn)", fontWeight: 600 }}> · {fmtDur(missing)} didn't fit around your events</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="legend">
+                  {valid.map((e) => <span key={e.id}><i style={{ background: (COLORS[e.color] || COLORS[0]).edge }} />{e.name}</span>)}
+                  <span><i style={{ background: "repeating-linear-gradient(135deg, #d9d2c4 0 3px, #ece6da 3px 6px)" }} />homework</span>
+                  {alloc.lost > 0 && <span><i className="blocked-key" />taken by fixed stuff</span>}
+                  <span>bar = {fmtDur(dailyHours * 60)} day</span>
+                </div>
+                <div className="days">
+                  {alloc.days.map(({ day, blocked, extra }) => {
+                    const hw = hwMinOn(day);
+                    const examsToday = valid.filter((e) => dayOfAbs(e.at) === day);
+                    const studyTotal = valid.reduce((s, e) => s + studyMinOn(e.id, day), 0);
+                    const extraMin = Object.values(extra).reduce((a, b) => a + b, 0);
+                    const big = bigOn(day);
+                    return (
+                      <div key={day} className="day-row">
+                        <div className="day-label">
+                          <b>{day === todayN ? "Today" : fmtDate(keyOf(day), { weekday: "short" })}</b>
+                          {fmtDate(keyOf(day), { month: "short", day: "numeric" })}
+                        </div>
+                        <div className="day-bar" title={`${fmtDur(studyTotal)} study · ${fmtDur(hw)} homework`}>
+                          {valid.map((e) => {
+                            const m = studyMinOn(e.id, day);
+                            return m > 0 ? <i key={e.id} style={{ width: `${(m / maxBudget) * 100}%`, background: (COLORS[e.color] || COLORS[0]).edge }} title={`${e.name}: ${fmtDur(m)}`} /> : null;
+                          })}
+                          {hw > 0 && <i className="hw" style={{ width: `${(hw / maxBudget) * 100}%` }} title={`Homework: ${fmtDur(hw)}`} />}
+                          {blocked > 0 && <i className="blocked" style={{ width: `${(blocked / maxBudget) * 100}%` }}
+                            title={`${fmtDur(blocked)} of your cram day taken by ${big.map((b) => b.title).join(", ") || "fixed events"}`} />}
+                        </div>
+                        <div className="day-meta">
+                          {big.map((b) => <span key={b.id} className="busy-flag">{b.title} {fmtSpan(b.start, b.end)} · </span>)}
+                          {fmtDur(studyTotal)} study · {fmtDur(hw)} homework
+                          {blocked > 0 && <span className="busy-flag"> · −{fmtDur(blocked)} (busy)</span>}
+                          {extraMin > 0 && <span className="catchup"> · +{fmtDur(extraMin)} catch-up</span>}
+                          {examsToday.map((e) => <span key={e.id} className="exam-flag"> · {e.name} exam {fmt(e.at - day * DAY_MIN)}</span>)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="note">
+                  Each day's study time is split by how cooked you are (fully cooked counts 8× an "I'll be fine" exam),
+                  with a boost as each exam gets close. Sessions go around your fixed events in 50-minute blocks with breaks (and leave you time to recover after draining things like practice),
+                  and stop 30 minutes before each exam.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {valid.length > 0 && (
+            <div className="card">
+              <h2>What happens to homework</h2>
+              <p className="sub">
+                On cram days homework gets {Math.round(hwShare * 100)}% of the time
+                {effort < 1 ? ` and is trimmed to ${Math.round(effort * 100)}% effort (just get it done)` : ""}. Deadlines still win: it's scheduled earliest-due first.
+              </p>
+              {todoHw.length === 0 ? <p className="empty">No homework on your calendar. Add some from the calendar's reality check.</p> : (
+                <ul className="hw-list">
+                  {todoHw.map((t) => {
+                    const p = plan[t.id] || { fits: false, segments: [] };
+                    const st = deadlineStatus({ ...t, ...p }, nowAbs);
+                    const trimmed = effort < 1 ? trimForCram(t, { effort }) : t;
+                    const minutes = trimmed.setup + trimmed.deep + trimmed.buffer;
+                    return (
+                      <li key={t.id}>
+                        <b>{t.title}</b> · {effort < 1 ? <>{fmtDur(t.total)} → <b>{fmtDur(minutes)}</b></> : fmtDur(t.total)}
+                        <div className={p.fits ? "" : "warn"}>
+                          {p.fits ? `${fmtWhen(p.segments[0].start, todayN)} – ${fmtWhen(p.segments[p.segments.length - 1].end, todayN)}` : "Doesn't fit in this plan"}
+                          {st && st.late ? <span className="warn"> · finishes {fmtDur(st.late)} after it's due</span> : ""}
+                          {st && !st.late && p.fits ? ` · due ${fmtWhen(t.deadline, todayN)}, on time` : ""}
+                          {p.overCramCap ? " · gets extra time beyond the homework share so it isn't late" : ""}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          )}
+
+          <div className="card">
+            <div className="stack" style={{ gap: 12 }}>
+              {justApplied && !dirty && <p className="banner ok">On your calendar: {study.filter((t) => plan[t.id] && plan[t.id].fits).length} study sessions and {examEvents.length} exams. <a href="index.html">See it →</a></p>}
+              {dirty && <p className="banner">You've changed things since you applied. Apply again to update the calendar.</p>}
+              <div className="actions">
+                <button className="btn hot" type="button" disabled={valid.length === 0} onClick={apply}>
+                  {cram.active ? "Update my calendar" : "Turn on Cram mode + put it on my calendar"}
+                </button>
+                {cram.active && <button className="btn ghost" type="button" onClick={turnOff}>Turn off Cram mode</button>}
+              </div>
+              <p className="note">
+                Applying adds each exam as a fixed event, adds the study sessions (colored by exam) and re-plans your homework around them.
+                Turning it off removes the study sessions and puts homework back on your normal schedule. Exams stay on the calendar.
+              </p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
